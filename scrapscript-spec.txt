@@ -1,0 +1,815 @@
+================================================================================
+SCRAPSCRIPT LANGUAGE SPECIFICATION
+================================================================================
+Sources: https://scrapscript.org/ and https://scrapscript.org/guide
+Date compiled: 2026-03-10
+================================================================================
+
+--------------------------------------------------------------------------------
+1. LANGUAGE OVERVIEW
+--------------------------------------------------------------------------------
+
+Scrapscript addresses "the software sharability problem." It is described as:
+  - "JSON with types and functions and hashed references"
+  - "tiny Haskell with extreme syntactic consistency"
+  - "a language with a weird IPFS thing"
+
+THREE GUARANTEES:
+  1. All expressions are content-addressable "scraps"
+  2. All programs are data
+  3. All programs are "platformed"
+
+PHILOSOPHY:
+  - Backwards syntax: write the goal first, then where-clauses
+    ("wishful thinking" — define what you want, then supply the pieces)
+  - AI/autocomplete optimized due to goal-first structure
+  - Merkle tree language structure: no broken dependencies
+  - Every scrap carries immutable dependencies
+  - Independent, expression-level versioning
+  - No traditional package management — pure content-addressing
+
+ALL VALID PROGRAMS RETURN VALID PROGRAMS:
+  - Programs chain through pipelines without data loss
+  - Arbitrary types can traverse networks directly
+  - Serialization-free experience across IPC, HTTP, QUIC, email
+
+
+--------------------------------------------------------------------------------
+2. DATA TYPES
+--------------------------------------------------------------------------------
+
+INTEGERS:
+  1
+  -1
+  0
+  Integers and floats are SEPARATE types. Cannot mix without conversion.
+
+FLOATS:
+  1.0
+  -1.0
+  2.0
+  Cannot be matched in pattern matching.
+
+TYPE MIXING ERRORS:
+  1 + 1.0        -- type error
+  1.0 + to-float 1   -- OK: 2.0
+
+TEXT (not "strings"):
+  "hello"
+  "hello world"
+  Preserves newlines:
+    "hello
+    world"
+  Supports emoji: "🐸"
+  Text interpolation (embed expressions in text):
+    "hello` "🐸" `frog"   -- evaluates to "hello🐸frog"
+  Concatenation with ++:
+    "hello" ++ " " ++ "world"   -- "hello world"
+
+BYTES:
+  Base64 encoded: ~~aGVsbG8gd29ybGQ=
+  Individual hex byte: ~FF
+  Hex byte ~00, ~FF, ~21, ~2B, etc.
+  Convert to text: bytes/to-utf8-text ~~aGVsbG8gd29ybGQ=   -- "hello world"
+  bytes/to-utf8-text <| ~~aGVsbG8gd29ybGQ= +< ~21          -- "hello world!"
+
+BOOLEANS:
+  #true #false
+  These are tagged variants (not special syntax — just conventions).
+
+HOLE (void/empty):
+  ()
+  Represents emptiness or void.
+
+LISTS:
+  [1, 2, 3]
+  HOMOGENEOUS: all elements must be same type.
+    ["1", 1, 1.0]   -- type error
+  Append:  [1, 2, 3] +< 4   -- [1, 2, 3, 4]
+  Prepend (cons): element >+ list
+
+RECORDS:
+  { a = 1, b = "x" }
+  HETEROGENEOUS: fields can have different types.
+  Field access: rec.a
+  Spread/update syntax: { ..g, a = 2, c = ~FF }
+    -- copies all fields from g, overrides a and c
+  Type consistency enforced: cannot change field types via spread:
+    { ..g, a = "y" }   -- type error if g.a was int
+
+TAGGED UNIONS (custom types):
+  Defined with : and # prefixes.
+  Variants are prefixed with #.
+  Variants can carry data.
+  See section 7 (Type System) for full details.
+
+FUNCTIONS:
+  First-class values.
+  f = a -> b -> a + b
+  See section 5 (Functions) for full details.
+
+REMOTE TYPE:
+  @user/name   -- sugar for (remote text text)::remote
+  (remote text text)::remote connie2036/echo "hello"
+  Used for network calls with automatic type-checking.
+
+RESULT TYPE:
+  (result text remote/error)
+  Variants: ::ok value | ::err error
+  Example: (result text remote/error)::ok "hello"
+
+
+--------------------------------------------------------------------------------
+3. SYNTAX & OPERATORS
+--------------------------------------------------------------------------------
+
+OPERATORS (mostly copied from Elm):
+
+  +       Addition (integers only)
+  -       Subtraction
+  *       Multiplication
+  ++      Text concatenation; also list/sequence concatenation in patterns
+  +<      List append (add element to end of list)
+  >+      List prepend / cons (add element to front; also used in destructuring)
+  >>      Function composition / pipe
+  |>      Pipe (left-to-right application)
+  <|      Reverse pipe (right-to-left application)
+  |       Pattern case separator (in function definitions)
+  :       Type annotation
+  =>      Generic type parameter
+  ::      Constructor / instantiation (type variant application)
+  ;       Where-clause separator (separates definitions)
+  @       Scrap map versioning (e.g. connie2036/fib@0)
+  $       Scrap hash reference prefix (e.g. $sha1~~...)
+  ~~      Base64 bytes literal prefix
+  ~       Hex byte literal prefix
+  .       Record field access (rec.a)
+  _       Wildcard pattern (matches anything, discards)
+  ->      Function arrow (pattern -> body)
+  ..      Record spread (copy remaining fields): { ..x, a = 1 }
+  ` `     Text interpolation delimiters (backticks around embedded expression)
+
+COMMENTS:
+  ; at the start of a line also serves as where-clause separator.
+  There is no dedicated comment syntax separate from where-clauses.
+
+OPERATOR PRECEDENCE / GREEDINESS:
+  Functions grab all code to their right until a . or matching ).
+  Use parentheses to limit scope.
+
+
+--------------------------------------------------------------------------------
+4. VARIABLES & WHERE-CLAUSES
+--------------------------------------------------------------------------------
+
+BACKWARDS SYNTAX: the expression comes first, definitions come after.
+
+  x               -- uses x
+  ; x = 100       -- defines x
+
+  a + b + c
+  ; a = 1
+  ; b = 2
+  ; c = 3
+  -- result: 6
+
+WHERE-CLAUSES IN SUBEXPRESSIONS:
+  200 + (x ; x = 150)   -- result: 350
+
+EACH ; INTRODUCES A NEW BINDING in scope for the expression above it.
+All bindings are in mutual scope (can reference each other).
+
+RATIONALE:
+  - "Wishful thinking": write what you want, then define the pieces
+  - Better for AI autocomplete (goal appears before implementation)
+  - Better for REPL interactivity
+
+
+--------------------------------------------------------------------------------
+5. FUNCTIONS
+--------------------------------------------------------------------------------
+
+DEFINITION:
+  f = a -> b -> a + b
+  -- multi-argument via currying (each -> introduces one argument)
+
+CALLING:
+  f 1 2   -- result: 3
+
+ANONYMOUS FUNCTIONS:
+  (x -> x)   -- identity function
+  (y -> y)   -- identity function
+
+CURRYING:
+  Each argument is applied one at a time.
+  Partial application is supported.
+
+GREEDINESS RULE:
+  A function body extends as far right as possible, until a . or ).
+  Use parentheses to limit scope.
+  Example: (x -> x) (y -> y)   -- result: y -> y
+
+FUNCTION COMPOSITION with >>:
+  (f >> (x -> x) >> g) 7
+  ; f = | 7 -> "cat" | 4 -> "dog" | _ -> "shark"
+  ; g = | "cat" -> "kitten" | "dog" -> "puppy" | a -> "baby " ++ a
+  -- result: "kitten"
+
+PATTERN MATCHING FUNCTIONS (cases with |):
+  f = | "a" -> 1
+      | "b" -> 2
+      | "c" -> 3
+      |  x  -> 0
+
+  -- inline form:
+  f = | "a" -> 1 | "b" -> 2 | "c" -> 3 | x -> 0
+
+MULTI-ARGUMENT PATTERN MATCHING:
+  | 1 -> 1 -> 1
+  | 1 -> 2 -> 3
+  | 3 -> 5 -> 8
+  | 5 -> 8 -> 12
+  | a -> b -> a + b
+
+
+--------------------------------------------------------------------------------
+6. PATTERN MATCHING
+--------------------------------------------------------------------------------
+
+SYNTAX: | pattern -> result
+
+INTEGERS:
+  | -1 -> "negative one"
+  |  0 -> "zero"
+  |  1 -> "one"
+  |  n -> "something else"
+  NOTE: Cannot pattern match on floats.
+
+BYTES (hex):
+  | ~00 -> ~00
+  | ~FF -> ~FF
+  |   n -> n
+
+TEXT (prefix matching):
+  | "hey" -> ""
+  | "hello " ++ name -> name    -- matches prefix "hello ", binds rest to name
+  | _ -> ""
+
+  Base64 text prefix:
+  | ~~8J+QuA== ++ x -> x        -- matches base64 prefix, binds rest to x
+  | x -> x
+
+LISTS:
+  | [ x, y, z ] ++ tail -> ()   -- exact 3 elements + remaining tail
+  | first >+ second >+ tail -> () -- first two elements + tail
+  | [ x ] -> ()                  -- exactly one element
+  | head >+ tail -> ()           -- head element + remaining tail
+  | [] -> ()                     -- empty list
+
+RECORDS:
+  | { ..x, a = 1, b = 2, c = 3 } -> ()   -- spread + specific fields
+  | { ..x, a = 1, b = b        } -> ()   -- binds b from record field
+  | {      a = 1, b = 2        } -> ()   -- exact fields (no spread)
+  | { ..x,               c = c } -> ()   -- spread + bind c
+
+NESTED DESTRUCTURING:
+  | { a = [ 3, 4 ]
+    , b = "howdy"
+    }
+    -> "howdy"
+
+  | { a = [ x ]
+    , b = "hi " ++ name
+    }
+    -> "not right now, " ++ name
+
+  | _
+    -> "..."
+
+TAGGED UNIONS:
+  hand::left 5 |>
+    | #l n -> n * 2
+    | #r n -> n * 3
+  ; hand :
+    #l int
+    #r int
+  -- result: 10
+
+WILDCARD:
+  _    -- matches anything, does not bind
+  x    -- matches anything, binds to x
+
+PATTERN ORDER:
+  Cases are tried top to bottom; first match wins.
+  The catchall (wildcard or variable) should be last.
+
+
+--------------------------------------------------------------------------------
+7. TYPE SYSTEM
+--------------------------------------------------------------------------------
+
+TYPE ANNOTATIONS with ::
+  c::chocolate
+  ; c : #vanilla #chocolate #strawberry
+
+  c::radius 4
+  ; c : #radius int
+
+  (#radius int)::radius 4
+
+TAGGED UNIONS (custom types):
+  scoop :
+    #vanilla
+    #chocolate
+    #strawberry
+
+  person :
+    #cowboy
+    #ron int
+    #parent (#m #f)
+    #friend int
+    #stranger text
+
+  c : #radius int   -- variant carrying an int
+
+  hand :
+    #l int
+    #r int
+
+GENERICS with =>:
+  point : x => y => z =>
+    #2d { x : x, y : y        }
+    #3d { x : x, y : y, z : z }
+
+  -- generic over x, y, z type parameters
+  -- instantiated as:
+  point::3d 1.0 "A" ~2B
+
+  typ : #fun (int -> int)
+  typ::fun (n -> x * 2)
+
+FUNCTION TYPE ANNOTATION:
+  (int -> int)
+  typ : #fun (int -> int)
+
+PARAMETRIC/RESULT TYPES:
+  (result text remote/error)
+  Variants: ::ok and ::err
+
+REMOTE TYPE:
+  @connie2036/echo              -- shorthand
+  (remote text text)::remote    -- explicit; takes input type, output type
+  (remote text text)::remote connie2036/echo "goodbye"
+
+NESTED TYPE MATCHING:
+  t :
+    #a a
+    #b int
+    #c byte
+  a :
+    #x
+    #y
+    #z
+
+  Pattern matching on nested types:
+  | #a { x = #l 0 } -> ()
+  | #a { x =  _   } -> ()
+  | #b { x = #l 1 } -> ()
+  | #b { x =  _   } -> ()
+  | #c { x = #l 2 } -> ()
+  | #c { x =  _   } -> ()
+  | _               -> ()
+
+TYPE ERRORS:
+  1 + 1.0                  -- type error (int + float)
+  ["1", 1, 1.0]            -- type error (heterogeneous list)
+  { ..g, a = "y" }         -- type error (field type change)
+  remote type mismatch     -- "remote type error" at runtime
+
+
+--------------------------------------------------------------------------------
+8. BUILT-IN FUNCTIONS & MODULES
+--------------------------------------------------------------------------------
+
+TYPE CONVERSION:
+  to-float n         -- int -> float
+  round   x          -- float -> int
+  ceil    x          -- float -> int
+  floor   x          -- float -> int
+
+BYTES MODULE:
+  bytes/to-utf8-text   -- bytes -> text
+
+LIST MODULE:
+  list/first           -- list -> maybe a (returns first element)
+  list/repeat          -- repeats list elements
+
+TEXT MODULE:
+  text/repeat          -- repeats text n times
+
+DICT MODULE:
+  dict/get             -- dictionary lookup
+
+MAYBE MODULE:
+  maybe/default        -- provide default for maybe type
+
+REMOTE MODULE:
+  remote/fetch         -- fetch from remote
+  remote/http-post     -- HTTP POST
+
+SCRAP MODULE:
+  scrap/type:text      -- type introspection
+
+ERROR CONSTRUCTORS:
+  eval/type-error      -- type mismatch reporting
+
+MISC:
+  string/join          -- join list of text with delimiter
+
+
+--------------------------------------------------------------------------------
+9. CONTENT ADDRESSABILITY & SCRAPS
+--------------------------------------------------------------------------------
+
+CONTENT HASH REFERENCES:
+  $sha1~~3efce6ae1ebf7fef7c7bdd8c270d76da5b079438
+  -- any expression can be replaced with its hash
+
+SCRAPYARDS (distributed key-value stores of hashes/scraps):
+  - Filesystem-based or HTTP API
+  - Public yard: yard.scrap.land
+  - Local yard: /var/my-scrapyard
+
+SCRAP MAPS (name -> version -> hash mappings):
+  connie2036/fib              -- named scrap
+  connie2036/fib@0            -- versioned scrap (version 0)
+  connie2036/greet@44         -- version 44
+  connie2036/planets          -- list of planets (example)
+
+  Maps searched automatically for undefined variable names.
+
+TIME-TRAVEL:
+  scrap eval --t="2005-01-01"
+  -- evaluates using scrap map state at that date
+  -- enables inspection of code regressions and dependency behavior
+
+  list/first connie2036/planets at 2005-01-01 -> just "Pluto"
+  list/first connie2036/planets at 2006-12-31 -> just "Neptune"
+
+SCRAPS:
+  - Any language chunk can be stored and referenced by hash
+  - Immutable once stored
+  - Carry their own dependencies (no broken deps)
+  - Independent, expression-level versioning
+
+SCRAPBOOKS:
+  - Private/team code collaboration and syncing
+  - Git-like branches, live editor collaboration
+
+
+--------------------------------------------------------------------------------
+10. PLATFORM & MANAGED EFFECTS
+--------------------------------------------------------------------------------
+
+ROCKS (cryptographic building blocks):
+  $$add     -- addition rock
+  $$int     -- integer type rock
+  Rocks make scrapscript portable and auditable.
+
+PLATFORM PARADIGM:
+  Scrapscript is an algebra for "managed effects."
+  Platforms handle: robots, filesystems, UIs, web servers, etc.
+  Programs declare effects; the platform executes them.
+
+REMOTE CALLS:
+  scrap platform remote apply '@connie2036/echo'
+  -- pipes input through remote function
+  -- input: any scrapscript value
+  -- output: (result text remote/error)::ok value or remote type error
+
+  remote/fetch ((remote text text)::remote connie2036/echo "goodbye")
+  -- explicit remote fetch
+  -- output: (result text remote/error)::ok "goodbye"
+
+PLATFORM SERVER:
+  scrap platform connie2036/server < my-server.ss
+  -- run a web server defined in scrapscript
+  -- pattern matches on routes
+
+TASK RESULTS:
+  (result text remote/error)::ok "hello"
+  (result text remote/error)::err ...
+
+MIME TYPES:
+  Content-Type: application/scrap
+  Accept: application/scrapscript
+
+
+--------------------------------------------------------------------------------
+11. SERIALIZATION
+--------------------------------------------------------------------------------
+
+FLAT FORMAT (binary/compact):
+  scrap flat
+  -- minimizes to compact byte format (msgpack-like)
+  -- extremely compact:
+     "3 * 5" | scrap eval | scrap flat -> 0F (one byte!)
+
+HEXDUMP EXAMPLE:
+  $ echo '3 * 5' | scrap eval | scrap flat | hexdump -C
+  0F
+
+WIRE PROTOCOL:
+  HTTP with application/scrap MIME type.
+  Arbitrary types traverse networks directly.
+  Automatic type-checking at network boundaries.
+  Compile-time contract verification between clients/servers.
+  Graceful degradation when remote APIs change.
+
+PIPELINE CHAINING:
+  echo '0' \
+    | scrap eval apply 'n -> n + 1' \
+    | scrap eval apply 'n -> n + 1' \
+    | scrap eval apply 'n -> n + 1'
+  -- result: 3
+
+  echo '"hello"' \
+    | scrap eval \
+    | scrap flat \
+    | http -b POST connie2036.com/echo \
+        Content-Type: application/scrap \
+        Accept: application/scrapscript
+  -- result: "hello"
+
+REFERENCE-BASED COMPRESSION:
+  Large data replaced with content hashes for efficient transfer.
+
+
+--------------------------------------------------------------------------------
+12. CLI COMMANDS
+--------------------------------------------------------------------------------
+
+EVALUATION:
+  echo '1 + 2' | scrap eval
+  -- evaluates expression, prints result: 3
+
+  scrap eval < hello-world.ss
+  -- evaluate from file
+
+  scrap eval apply 'n -> n + 1'
+  -- pipe stdin through function, output result
+
+  scrap eval --t="2005-01-01"
+  -- time-travel: evaluate using historical scrap map state
+
+SERIALIZATION:
+  scrap flat
+  -- minimize to compact binary format
+
+SCRAPYARD MANAGEMENT:
+  scrap yard init /var/my-scrapyard
+  -- initialize local scrapyard
+
+  echo '123' | scrap flat | scrap yard push /var/my-scrapyard
+  -- push flat-encoded value to yard, prints hash:
+  -- $sha1~~3efce6ae1ebf7fef7c7bdd8c270d76da5b079438
+
+  scrap yard listen /var/my-scrapyard :8080
+  -- serve scrapyard over HTTP on port 8080
+  -- curl http://localhost:8080/#sha1~~<hash> -> value
+
+SCRAP MAP MANAGEMENT:
+  scrap map commit connie2036/greet
+  -- commit a scrap to the map under a name, outputs versioned ref
+
+  scrap map push /var/my-scrapmap
+  -- push committed scraps to a map (local or remote)
+
+  scrap map push https://map.scrap.land
+  -- push to public map
+
+  scrap map claim connie2036 user@example.com
+  -- claim a namespace
+
+AUTHENTICATION:
+  scrap pass sign ~/.ssh/id_rsa
+  -- sign a scrap map commit or claim with SSH key
+
+PLATFORM:
+  scrap platform connie2036/server < my-server.ss
+  -- run scrapscript with managed effects via a named platform
+
+  scrap platform remote apply '@connie2036/echo'
+  -- apply a remote function to piped input
+
+  scrap platform remote
+  -- evaluate expressions that use remote/
+
+SCRAPBOOK:
+  scrap book init /var/my-scrapbook
+  -- initialize a local scrapbook
+
+CONFIG:
+  cat ~/.config/scrapscript/config.ss \
+    | scrap eval apply \
+      'config -> { ..config, yards = [ "https://yard.scrap.land", "/var/my-scrapyard" ] }' \
+    > ~/.config/scrapscript/config.ss
+  -- update config to add yards
+
+  cat ~/.config/scrapscript/config.ss \
+    | scrap eval apply \
+      'config -> { ..config, maps = [ "https://map.scrap.land", "/var/my-scrapmap" ] }' \
+    > ~/.config/scrapscript/config.ss
+  -- update config to add maps
+
+FULL PUBLISH WORKFLOW:
+  echo '() -> "hello"' \
+    | scrap flat  \
+    | scrap map commit connie2036/greet \
+    | scrap pass sign ~/.ssh/id_rsa \
+    | scrap map push https://map.scrap.land
+  -- publish a named scrap to the public map
+
+
+--------------------------------------------------------------------------------
+13. EDGE CASES & SEMANTICS
+--------------------------------------------------------------------------------
+
+TYPE MIXING RULES:
+  - int and float cannot be mixed in arithmetic (type error)
+  - Lists must be homogeneous (all elements same type)
+  - Record field types cannot change via spread update
+  - Remote type mismatch is a runtime "remote type error"
+
+LIST HOMOGENEITY:
+  [1, 2, 3]          -- OK
+  ["a", "b", "c"]    -- OK
+  [1, "a", 2.0]      -- type error
+
+FLOAT PATTERN MATCHING:
+  Floats CANNOT be matched in patterns.
+  Only integers, text, bytes, lists, and records can be pattern matched.
+
+PATTERN ORDER:
+  Cases evaluated top-to-bottom; first match wins.
+  Catchall patterns (_, variable) must come last or they shadow later cases.
+
+FUNCTION GREEDINESS:
+  a -> b + c is parsed as a -> (b + c), not (a -> b) + c
+  Function body extends to the right until . or ).
+  Use parentheses to limit scope: (a -> b) + c would require parens.
+
+WILDCARD vs VARIABLE in patterns:
+  _ discards the matched value (no binding)
+  x binds the matched value to name x
+
+SCRAP MAP VERSIONING:
+  Versions are integers assigned at commit time.
+  connie2036/greet@44 pinned to version 44.
+  Without @version, uses current (latest at evaluation time or --t time).
+
+SCRAPS ARE IMMUTABLE:
+  Once stored with a hash, content never changes.
+  A new version creates a new hash.
+
+PIPE CHAINING SEMANTICS:
+  Each scrap eval apply call:
+  1. Reads a scrapscript value from stdin
+  2. Applies the given function
+  3. Writes a scrapscript value to stdout
+  Values are valid scrapscript at every stage.
+
+AUTHENTICATION / NAMESPACES:
+  Namespaces (e.g. connie2036/) are claimed with SSH keys.
+  Scrap passes prevent namespace squatting.
+  Premium namespaces may require payment.
+
+RECORD SPREAD DETAILS:
+  { ..g, a = 2 }    -- copy all fields of g, override field a
+  { ..g, a = 2, c = ~FF }  -- copy all fields of g, override a and c
+  Spread binds all unmentioned fields to x in pattern:
+  | { ..x, a = 1 } -> ...   -- x captures all other fields
+
+GENERIC TYPE SEMANTICS:
+  x => y => z => ...   -- type-level function (type takes type parameters)
+  Applied at type construction time.
+  point::3d 1.0 "A" ~2B   -- instantiates with float, text, byte
+
+RESULT TYPE USAGE:
+  Remote operations return (result T E)::ok value or ::err error.
+  Pattern match to handle both cases.
+
+
+--------------------------------------------------------------------------------
+14. FULL WORKED EXAMPLES
+--------------------------------------------------------------------------------
+
+HELLO WORLD:
+  "hello world"
+
+ARITHMETIC:
+  1 + 1        -- 2
+  1.0 + 1.0    -- 2.0
+  3 * 5        -- 15
+
+TEXT OPERATIONS:
+  "hello" ++ " " ++ "world"              -- "hello world"
+  bytes/to-utf8-text ~~aGVsbG8gd29ybGQ= -- "hello world"
+  bytes/to-utf8-text <| ~~aGVsbG8gd29ybGQ= +< ~21  -- "hello world!"
+
+WHERE-CLAUSES:
+  a + b + c
+  ; a = 1
+  ; b = 2
+  ; c = 3
+  -- 6
+
+LIST OPERATIONS:
+  [1, 2, 3] +< 4    -- [1, 2, 3, 4]
+
+RECORD OPERATIONS:
+  rec.a
+  ; rec = { a = 1, b = "x" }
+  -- 1
+
+  { ..g, a = 2, c = ~FF }
+  ; g = { a = 1, b = "x", c = ~00 }
+  -- { a = 2, b = "x", c = ~FF }
+
+FUNCTION DEFINITION AND CALL:
+  f 1 2
+  ; f = a -> b -> a + b
+  -- 3
+
+PATTERN MATCHING FUNCTION:
+  f "b"
+  ; f =
+    | "a" -> 1
+    | "b" -> 2
+    | "c" -> 3
+    |  x  -> 0
+  -- 2
+
+FUNCTION COMPOSITION:
+  (f >> (x -> x) >> g) 7
+  ; f = | 7 -> "cat"
+        | 4 -> "dog"
+        | _ -> "shark"
+  ; g = | "cat" -> "kitten"
+        | "dog" -> "puppy"
+        |   a   -> "baby " ++ a
+  -- "kitten"
+
+TAGGED UNION DEFINITION AND USE:
+  scoop::chocolate
+  ; scoop :
+    #vanilla
+    #chocolate
+    #strawberry
+
+  hand::left 5 |>
+    | #l n -> n * 2
+    | #r n -> n * 3
+  ; hand :
+    #l int
+    #r int
+  -- 10
+
+GENERIC TYPE:
+  point::3d 1.0 "A" ~2B
+  ; point : x => y => z =>
+    #2d { x : x, y : y        }
+    #3d { x : x, y : y, z : z }
+
+FUNCTION TYPE IN UNION:
+  typ::fun (n -> x * 2)
+  ; typ : #fun (int -> int)
+
+REMOTE CALL:
+  remote/fetch ((remote text text)::remote connie2036/echo "goodbye")
+  -- (result text remote/error)::ok "goodbye"
+
+TIME-TRAVEL:
+  list/first connie2036/planets
+  -- evaluated --t="2005-01-01" -> just "Pluto"
+  -- evaluated --t="2006-12-31" -> just "Neptune"
+
+PIPELINE:
+  echo '0' \
+    | scrap eval apply 'n -> n + 1' \
+    | scrap eval apply 'n -> n + 1' \
+    | scrap eval apply 'n -> n + 1'
+  -- 3
+
+PUBLISH A SCRAP:
+  echo '() -> "hello"' \
+    | scrap flat  \
+    | scrap map commit connie2036/greet \
+    | scrap pass sign ~/.ssh/id_rsa \
+    | scrap map push https://map.scrap.land
+  -- connie2036/greet@44
+
+
+================================================================================
+END OF SCRAPSCRIPT SPECIFICATION
+================================================================================
