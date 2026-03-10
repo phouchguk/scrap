@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Scrapscript.Core/Scrapscript.Core.csproj" />
+  <Project Path="Scrapscript.Repl/Scrapscript.Repl.csproj" />
+  <Project Path="Scrapscript.Tests/Scrapscript.Tests.csproj" />
+</Solution>
