@@ -562,9 +562,13 @@ public class Parser(List<Token> tokens)
             if (Check(TokenType.HashTag))
             {
                 var tag = Consume().Text;
+                // Consume all consecutive type atoms (for multi-arg variants like #two-d int int)
                 TypeExpr? payload = null;
-                if (IsTypeAtomStart())
-                    payload = ParseTypeAtom();
+                while (IsTypeAtomStart())
+                {
+                    var atom = ParseTypeAtom();
+                    payload = payload == null ? atom : new ApplyType(payload, atom);
+                }
                 variants.Add((tag, payload));
             }
         }

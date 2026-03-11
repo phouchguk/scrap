@@ -139,6 +139,13 @@ public class Evaluator
             ScrapBuiltin b => b.Apply(arg),
             ScrapBuiltin2 b2 => new ScrapBuiltinPartial(b2.Name, arg, b2.Apply),
             ScrapBuiltinPartial bp => bp.Apply(bp.First, arg),
+            // Variant constructor: applying args accumulates into payload
+            ScrapVariant { Payload: null } sv => new ScrapVariant(sv.Tag, arg),
+            ScrapVariant sv => sv.Payload switch
+            {
+                ScrapList l => new ScrapVariant(sv.Tag, new ScrapList(l.Items.Add(arg))),
+                var p => new ScrapVariant(sv.Tag, new ScrapList(ImmutableList.Create(p, arg)))
+            },
             _ => throw new ScrapTypeError($"Cannot apply non-function: {fn.Display()}")
         };
     }

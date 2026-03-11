@@ -73,6 +73,9 @@ public record ScrapVariant(string Tag, ScrapValue? Payload) : ScrapValue
     {
         if (Payload is null)
             return $"#{Tag}";
+        // Multi-arg payload stored as list — display items space-separated
+        if (Payload is ScrapList l)
+            return $"#{Tag} {string.Join(" ", l.Items.Select(v => v.Display()))}";
         return $"#{Tag} {Payload.Display()}";
     }
 }

@@ -186,6 +186,27 @@ public class EvalTests
         Assert.Null(variant.Payload);
     }
 
+    [Fact]
+    public void TypeDefVariantWithPayload()
+    {
+        var res = Eval("c::radius 4 ; c : #radius int");
+        var variant = Assert.IsType<ScrapVariant>(res);
+        Assert.Equal("radius", variant.Tag);
+        Assert.Equal(Int(4), variant.Payload);
+    }
+
+    [Fact]
+    public void TypeDefVariantMultiPayload()
+    {
+        var res = Eval("point::two-d 3 4 ; point : #two-d int int #three-d int int int");
+        var variant = Assert.IsType<ScrapVariant>(res);
+        Assert.Equal("two-d", variant.Tag);
+        var list = Assert.IsType<ScrapList>(variant.Payload);
+        Assert.Equal(2, list.Items.Count);
+        Assert.Equal(Int(3), list.Items[0]);
+        Assert.Equal(Int(4), list.Items[1]);
+    }
+
     // ── Bytes ─────────────────────────────────────────────────────────────────
 
     [Fact]
