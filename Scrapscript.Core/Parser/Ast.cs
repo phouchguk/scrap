@@ -85,3 +85,4 @@ public record GenericType(string Param, TypeExpr Body) : TypeExpr;    // x =>
 public record VariantType(List<(string Tag, TypeExpr? Payload)> Variants) : TypeExpr;
 public record FuncType(TypeExpr From, TypeExpr To) : TypeExpr;
 public record ApplyType(TypeExpr Fn, TypeExpr Arg) : TypeExpr;
+public record RecordTypeExpr(List<(string Field, TypeExpr Type)> Fields) : TypeExpr;

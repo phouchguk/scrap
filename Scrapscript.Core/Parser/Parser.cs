@@ -613,13 +613,29 @@ public class Parser(List<Token> tokens)
         // HashTag is NOT a type atom — it's a variant constructor, handled in ParseTypeExpr
         return Current.Type switch
         {
-            TokenType.Identifier or TokenType.LParen => true,
+            TokenType.Identifier or TokenType.LParen or TokenType.LBrace => true,
             _ => false
         };
     }
 
     private TypeExpr ParseTypeAtom()
     {
+        if (Check(TokenType.LBrace))
+        {
+            // Record type: { fieldName : type, ... }
+            Consume();
+            var fields = new List<(string, TypeExpr)>();
+            while (!Check(TokenType.RBrace) && !Check(TokenType.Eof))
+            {
+                var fieldName = Expect(TokenType.Identifier).Text;
+                Expect(TokenType.Colon);
+                var fieldType = ParseTypeAtom();
+                fields.Add((fieldName, fieldType));
+                if (Check(TokenType.Comma)) Consume();
+            }
+            Expect(TokenType.RBrace);
+            return new RecordTypeExpr(fields);
+        }
         if (Check(TokenType.LParen))
         {
             Consume();

@@ -271,6 +271,19 @@ public class EvalTests
         Assert.Equal(Text("hi aaaron"), Eval(src));
     }
 
+    [Fact]
+    public void GenericTypePoint3d()
+    {
+        var res = Eval("point::3d 1.0 \"A\" ~2B ; point : x => y => z => #2d { x : x, y : y } #3d { x : x, y : y, z : z }");
+        var variant = Assert.IsType<ScrapVariant>(res);
+        Assert.Equal("3d", variant.Tag);
+        var list = Assert.IsType<ScrapList>(variant.Payload);
+        Assert.Equal(3, list.Items.Count);
+        Assert.Equal(new ScrapFloat(1.0), list.Items[0]);
+        Assert.Equal(new ScrapText("A"), list.Items[1]);
+        Assert.Equal(new ScrapBytes(new byte[] { 0x2B }), list.Items[2]);
+    }
+
     // ── Full worked examples from spec ────────────────────────────────────────
 
     [Fact] public void HelloWorld() => Assert.Equal(Text("hello world"), Eval("\"hello world\""));
