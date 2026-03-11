@@ -51,11 +51,23 @@ public class Parser(List<Token> tokens)
         {
             Consume(); // ;
             var pat = ParsePattern();
-            Expect(TokenType.Equals);
-            // Binding RHS: does NOT consume further ; at this level.
-            // Nested where-clauses must be parenthesized: (x ; x = 1)
-            var val = ParsePipe();
-            bindings.Add(new Binding(pat, val));
+
+            if (Current.Type == TokenType.Colon)
+            {
+                // Type definition: ; name : #variant1 #variant2 ...
+                Consume(); // :
+                var name = pat is VarPat vp ? vp.Name : throw new ParseError("Type binding requires a simple name");
+                var typeDef = ParseTypeExpr();
+                bindings.Add(new Binding(pat, new TypeDefExpr(name, typeDef)));
+            }
+            else
+            {
+                Expect(TokenType.Equals);
+                // Binding RHS: does NOT consume further ; at this level.
+                // Nested where-clauses must be parenthesized: (x ; x = 1)
+                var val = ParsePipe();
+                bindings.Add(new Binding(pat, val));
+            }
         }
         return new WhereExpr(body, bindings);
     }
@@ -570,9 +582,10 @@ public class Parser(List<Token> tokens)
 
     private bool IsTypeAtomStart()
     {
+        // HashTag is NOT a type atom — it's a variant constructor, handled in ParseTypeExpr
         return Current.Type switch
         {
-            TokenType.Identifier or TokenType.LParen or TokenType.HashTag => true,
+            TokenType.Identifier or TokenType.LParen => true,
             _ => false
         };
     }

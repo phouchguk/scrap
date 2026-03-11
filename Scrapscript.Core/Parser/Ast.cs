@@ -29,9 +29,13 @@ public record ListExpr(List<Expr> Items) : Expr;
 public record RecordExpr(List<(string Field, Expr Value)> Fields, string? Spread) : Expr;
 public record RecordAccess(Expr Record, string Field) : Expr;
 
-// Where: expr ; name = val ; name2 = val2 ...
+// Where: expr ; name = val ; name2 = val2 ... ; name : type ...
 public record WhereExpr(Expr Body, List<Binding> Bindings) : Expr;
 public record Binding(Pattern Pattern, Expr Value);
+
+// Type definition expression (used for ; name : variants)
+// At runtime evaluates to a ScrapHole; provides a namespace for :: constructors.
+public record TypeDefExpr(string Name, TypeExpr TypeDef) : Expr;
 
 // Functions
 public record LambdaExpr(Pattern Param, Expr Body) : Expr;

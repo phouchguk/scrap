@@ -177,6 +177,15 @@ public class EvalTests
         Assert.Equal(Int(1), res);
     }
 
+    [Fact]
+    public void TypeDefVariantConstructor()
+    {
+        var res = Eval("scoop::chocolate ; scoop : #vanilla #chocolate #strawberry");
+        var variant = Assert.IsType<ScrapVariant>(res);
+        Assert.Equal("chocolate", variant.Tag);
+        Assert.Null(variant.Payload);
+    }
+
     // ── Bytes ─────────────────────────────────────────────────────────────────
 
     [Fact]

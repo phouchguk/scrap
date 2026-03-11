@@ -36,6 +36,7 @@ public class Evaluator
 
             ConstructorExpr c => EvalConstructor(c, env),
             TypeAnnotation ta => Eval(ta.Value, env),  // ignore type annotations at runtime
+            TypeDefExpr => new ScrapHole(),             // type definitions are no-ops at runtime
 
             _ => throw new ScrapTypeError($"Cannot evaluate: {expr}")
         };
