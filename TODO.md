@@ -42,7 +42,39 @@ From section 14 of scrapscript-spec.txt:
 
 1. **Improve REPL**: persist bindings across lines (session environment)
 2. **Text interpolation**: handle backtick interpolation in strings
-3. **Type checking**: enforce list homogeneity, record field type consistency
+3. **Static type checker** — see notes below
 4. **Content addressability**: SHA1 hash of values, `$sha1~~...` references
 5. **Float display**: improve float formatting
-6. **More builtins**: `list/repeat`, `dict/get` with int keys, etc.
+6. **More builtins**: `dict/get` with int keys, etc.
+
+## Static Type Checker (future work)
+
+Currently types are **parsed but never enforced**. Type annotations (`: type`) and type definitions
+(`; name : #variant1 #variant2`) are discarded after parsing; the evaluator is dynamically typed.
+
+Some errors *are* caught at runtime (e.g. `1 + 1.0` throws `ScrapTypeError`) but only when the
+bad expression is actually evaluated.
+
+**What proper enforcement would give:**
+- `1 + 1.0` — rejected before evaluation
+- `scoop::banana` — rejected (not a declared variant)
+- `{ ..g, a = "y" }` — rejected if `g.a` is not text
+- Heterogeneous lists `[1, "a"]` — rejected
+- Mismatched case arm bodies — caught
+- Function argument type mismatches — caught
+
+**Implementation approach:**
+- New `TypeChecker/` directory in `Scrapscript.Core`
+- `ScrapType` hierarchy (IntType, FloatType, TextType, BytesType, HoleType, ListType, RecordType,
+  VariantType, FuncType, TypeVar)
+- A **type environment** parallel to the value environment, populated from `: type` definitions
+- **Algorithm W** (Hindley-Milner) — unification-based type inference:
+  - Generate type constraints while walking the AST
+  - Solve constraints via unification (find a substitution that satisfies all constraints)
+  - Report unification failures as type errors with source location
+- **Generics** (`x => y => z =>`) become type-level lambdas; instantiated with fresh type variables
+  at each use site
+- **Pattern match exhaustiveness** checking is a natural addition once variant types are tracked
+- Run as a pass between parsing and evaluation; evaluation only proceeds if type checking succeeds
+
+**Rough size:** ~500–800 lines of new C#. A full session's work.
