@@ -207,6 +207,18 @@ public class EvalTests
         Assert.Equal(Int(4), list.Items[1]);
     }
 
+    [Fact]
+    public void TypeDefVariantDigitLeadingTag()
+    {
+        var res = Eval("point::2d 3 4 ; point : #2d int int #3d int int int");
+        var variant = Assert.IsType<ScrapVariant>(res);
+        Assert.Equal("2d", variant.Tag);
+        var list = Assert.IsType<ScrapList>(variant.Payload);
+        Assert.Equal(2, list.Items.Count);
+        Assert.Equal(Int(3), list.Items[0]);
+        Assert.Equal(Int(4), list.Items[1]);
+    }
+
     // ── Bytes ─────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -239,6 +251,25 @@ public class EvalTests
     [Fact] public void StringJoin() => Assert.Equal(Text("a, b, c"), Eval("string/join \", \" [\"a\", \"b\", \"c\"]"));
     [Fact] public void MaybeDefault() => Assert.Equal(Int(5), Eval("maybe/default 0 (list/first [5])"));
     [Fact] public void MaybeDefaultEmpty() => Assert.Equal(Int(0), Eval("maybe/default 0 (list/first [])"));
+
+    // ── Person/greet example from spec ───────────────────────────────────────
+
+    [Fact]
+    public void PersonGreetRon()
+    {
+        var src =
+            "greet <| person::ron 3 " +
+            "; greet : person -> text = " +
+            "  | #cowboy -> \"howdy\" " +
+            "  | #ron n -> \"hi \" ++ text/repeat n \"a\" ++ \"ron\" " +
+            "  | #parent #m -> \"hey mom\" " +
+            "  | #parent #f -> \"greetings father\" " +
+            "  | #friend n -> \"yo\" |> list/repeat n |> string/join \" \" " +
+            "  | #stranger \"felicia\" -> \"bye\" " +
+            "  | #stranger name -> \"hello \" ++ name " +
+            "; person : #cowboy #ron int #parent (#m #f) #friend int #stranger text";
+        Assert.Equal(Text("hi aaaron"), Eval(src));
+    }
 
     // ── Full worked examples from spec ────────────────────────────────────────
 

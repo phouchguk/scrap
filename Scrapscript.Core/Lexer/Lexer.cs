@@ -103,7 +103,8 @@ public class Lexer(string source)
         if (c == '#')
         {
             Advance();
-            if (IsIdentStart(Current))
+            // Tag names may start with a digit (e.g. #2d, #3d)
+            if (IsIdentStart(Current) || char.IsDigit(Current))
             {
                 var name = ReadIdentifier();
                 return Make(TokenType.HashTag, name, line, col);

@@ -54,17 +54,26 @@ public class Parser(List<Token> tokens)
 
             if (Current.Type == TokenType.Colon)
             {
-                // Type definition: ; name : #variant1 #variant2 ...
                 Consume(); // :
                 var name = pat is VarPat vp ? vp.Name : throw new ParseError("Type binding requires a simple name");
                 var typeDef = ParseTypeExpr();
-                bindings.Add(new Binding(pat, new TypeDefExpr(name, typeDef)));
+                if (Current.Type == TokenType.Equals)
+                {
+                    // Type-annotated value binding: ; name : type = value
+                    // Type annotation is ignored at runtime
+                    Consume(); // =
+                    var val = ParsePipe();
+                    bindings.Add(new Binding(pat, val));
+                }
+                else
+                {
+                    // Pure type definition: ; name : #variant1 #variant2 ...
+                    bindings.Add(new Binding(pat, new TypeDefExpr(name, typeDef)));
+                }
             }
             else
             {
                 Expect(TokenType.Equals);
-                // Binding RHS: does NOT consume further ; at this level.
-                // Nested where-clauses must be parenthesized: (x ; x = 1)
                 var val = ParsePipe();
                 bindings.Add(new Binding(pat, val));
             }
@@ -253,7 +262,22 @@ public class Parser(List<Token> tokens)
         if (Check(TokenType.ColonColon))
         {
             Consume();
-            var variant = Expect(TokenType.Identifier).Text;
+            // Variant name may start with digits (e.g. ::2d) — lexed as Int+"d" or just Identifier
+            string variant;
+            if (Current.Type == TokenType.Int && Peek().Type == TokenType.Identifier)
+            {
+                var digits = Consume().Text;
+                var letters = Consume().Text;
+                variant = digits + letters;
+            }
+            else if (Current.Type == TokenType.Int)
+            {
+                variant = Consume().Text;
+            }
+            else
+            {
+                variant = Expect(TokenType.Identifier).Text;
+            }
             return new ConstructorExpr(expr, variant);
         }
         return expr;
@@ -614,6 +638,13 @@ public class Parser(List<Token> tokens)
         if (Check(TokenType.Identifier))
         {
             var name = Consume().Text;
+            // Handle function type: A -> B
+            if (Check(TokenType.Arrow))
+            {
+                Consume();
+                var ret = ParseTypeAtom();
+                return new FuncType(new NamedType(name), ret);
+            }
             return new NamedType(name);
         }
         throw new ParseError($"Expected type expression at {Current.Line}:{Current.Col}");

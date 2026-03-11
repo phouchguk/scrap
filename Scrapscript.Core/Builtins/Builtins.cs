@@ -58,12 +58,10 @@ public static class BuiltinEnv
             _ => throw new ScrapTypeError($"list/length: expected list, got {v.Display()}")
         }));
 
-        env.Set("list/repeat", new ScrapBuiltin2("list/repeat", (a, b) => (a, b) switch
+        env.Set("list/repeat", new ScrapBuiltin2("list/repeat", (a, b) => a switch
         {
-            (ScrapInt n, ScrapList l) =>
-                new ScrapList(Enumerable.Repeat(l.Items, (int)n.Value)
-                    .SelectMany(x => x).ToImmutableList()),
-            _ => throw new ScrapTypeError($"list/repeat: expected int and list")
+            ScrapInt n => new ScrapList(Enumerable.Repeat(b, (int)n.Value).ToImmutableList()),
+            _ => throw new ScrapTypeError($"list/repeat: expected int as first argument")
         }));
 
         // text module
