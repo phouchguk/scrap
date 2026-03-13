@@ -237,4 +237,64 @@ public class TypeCheckerTests
             "; f = | #vanilla -> 1 " +
             "; scoop : #vanilla #chocolate #strawberry");
     }
+
+    // ── Record spread ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SpreadKnownRecordOk()
+    {
+        AssertOk("{ ..r, b = 2 } ; r = { a = 1 }");
+    }
+
+    [Fact]
+    public void RejectSpreadNonRecord()
+    {
+        AssertTypeError("{ ..x, a = 1 } ; x = 5");
+    }
+
+    // ── Redundant arms ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RejectRedundantVariantArm()
+    {
+        AssertTypeError(
+            "f (scoop::vanilla) " +
+            "; f = | #vanilla -> 1 | #chocolate -> 2 | #vanilla -> 3 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
+
+    [Fact]
+    public void NoRedundantArmsOk()
+    {
+        AssertOk(
+            "f (scoop::vanilla) " +
+            "; f = | #vanilla -> 1 | #chocolate -> 2 | #strawberry -> 3 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
+
+    // ── Type annotations ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void AnnotationMatchesInferredType()
+    {
+        AssertOk("f 1 ; f : int -> int = x -> x + 1");
+    }
+
+    [Fact]
+    public void RejectAnnotationConflict()
+    {
+        AssertTypeError("f ; f : int = \"hello\"");
+    }
+
+    [Fact]
+    public void AnnotationWithNamedType()
+    {
+        AssertOk("greet (person::cowboy) ; greet : person -> text = | #cowboy -> \"howdy\" | _ -> \"hi\" ; person : #cowboy #other");
+    }
+
+    [Fact]
+    public void PolymorphicAnnotationOk()
+    {
+        AssertOk("id 1 ; id : a -> a = x -> x");
+    }
 }

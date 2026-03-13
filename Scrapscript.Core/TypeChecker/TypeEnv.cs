@@ -115,7 +115,7 @@ public class TypeEnv
                     f => f.Field,
                     f => ConvertTypeExpr(f.Type, typeParams))),
             ApplyType a => ApplyGenericType(a, typeParams),
-            VariantType => new TVar("_anonymous_variant"), // inline variant type used as payload — treated as opaque
+            VariantType => THole.Instance, // inline variant type used as payload — treated as opaque
             _ => throw new TypeCheckError($"Cannot convert type expression: {typeExpr}")
         };
     }

@@ -60,10 +60,9 @@ public class Parser(List<Token> tokens)
                 if (Current.Type == TokenType.Equals)
                 {
                     // Type-annotated value binding: ; name : type = value
-                    // Type annotation is ignored at runtime
                     Consume(); // =
                     var val = ParsePipe();
-                    bindings.Add(new Binding(pat, val));
+                    bindings.Add(new Binding(pat, new TypeAnnotation(val, typeDef)));
                 }
                 else
                 {

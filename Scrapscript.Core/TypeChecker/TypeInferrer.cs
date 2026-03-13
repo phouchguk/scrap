@@ -44,7 +44,7 @@ public class TypeInferrer
             BinOpExpr b => InferBinOp(env, b),
 
             ConstructorExpr c => InferConstructor(env, c),
-            TypeAnnotation ta => Infer(env, ta.Value),
+            TypeAnnotation ta => InferTypeAnnotation(env, ta),
             TypeDefExpr => (THole.Instance, Substitution.Empty),
 
             _ => throw new TypeCheckError($"Cannot type-check: {expr}")
@@ -87,13 +87,13 @@ public class TypeInferrer
 
         if (r.Spread != null)
         {
-            // Spread: base record must be a TRecord or TVar
             if (!env.TryLookup(r.Spread, out var baseScheme))
                 throw new TypeCheckError($"Unbound variable in spread: {r.Spread}");
-            var baseType = baseScheme!.Instantiate(Fresh);
+            var baseType = baseScheme!.Instantiate(Fresh).Apply(s);
             if (baseType is TRecord baseRec)
                 fields = baseRec.Fields;
-            // If it's a TVar, we can't statically check spread fields — allow it
+            else if (baseType is not TVar)
+                throw new TypeCheckError($"Cannot spread non-record type '{baseType}'");
         }
 
         foreach (var (field, valExpr) in r.Fields)
@@ -200,6 +200,41 @@ public class TypeInferrer
         return (new TFunc(paramType.Apply(s), bodyType.Apply(s)), s);
     }
 
+    // ── Type annotation ───────────────────────────────────────────────────────
+
+    private (ScrapType, Substitution) InferTypeAnnotation(TypeEnv env, TypeAnnotation ta)
+    {
+        var (inferredType, s) = Infer(env, ta.Value);
+        var freeNames = CollectFreeTypeNames(ta.TypeDef, env);
+        var declaredType = env.ConvertTypeExpr(ta.TypeDef, freeNames);
+        var sUnify = Substitution.Unify(inferredType.Apply(s), declaredType);
+        return (inferredType.Apply(s).Apply(sUnify), s.Compose(sUnify));
+    }
+
+    private static readonly HashSet<string> KnownPrimitives =
+        new() { "int", "float", "text", "bytes", "bool" };
+
+    private List<string> CollectFreeTypeNames(TypeExpr typeExpr, TypeEnv env)
+    {
+        var names = new HashSet<string>();
+        GatherNames(typeExpr, names);
+        return names
+            .Where(n => !KnownPrimitives.Contains(n) && env.LookupTypeDef(n) == null)
+            .ToList();
+    }
+
+    private static void GatherNames(TypeExpr typeExpr, HashSet<string> names)
+    {
+        switch (typeExpr)
+        {
+            case NamedType n:      names.Add(n.Name); break;
+            case FuncType f:       GatherNames(f.From, names); GatherNames(f.To, names); break;
+            case ApplyType a:      GatherNames(a.Fn, names); GatherNames(a.Arg, names); break;
+            case GenericType g:    GatherNames(g.Body, names); break;
+            case RecordTypeExpr r: foreach (var (_, t) in r.Fields) GatherNames(t, names); break;
+        }
+    }
+
     // ── Case function ─────────────────────────────────────────────────────────
 
     private (ScrapType, Substitution) InferCase(TypeEnv env, CaseExpr ce)
@@ -232,8 +267,25 @@ public class TypeInferrer
             resultType = resultType.Apply(s);
         }
 
+        CheckRedundantArms(ce);
         CheckExhaustiveness(ce, argType.Apply(s), env.ApplySubst(s));
         return (new TFunc(argType.Apply(s), resultType.Apply(s)), s);
+    }
+
+    private static void CheckRedundantArms(CaseExpr ce)
+    {
+        // Track tags whose earlier arm has a catch-all payload (no payload, wildcard, or var)
+        var catchAllTags = new HashSet<string>();
+        foreach (var arm in ce.Arms)
+        {
+            if (arm.Pattern is VariantPat vp)
+            {
+                if (catchAllTags.Contains(vp.Tag))
+                    throw new TypeCheckError($"Redundant pattern: '#{vp.Tag}' is already covered by an earlier arm");
+                if (vp.Payload == null || vp.Payload is WildcardPat or VarPat)
+                    catchAllTags.Add(vp.Tag);
+            }
+        }
     }
 
     private void CheckExhaustiveness(CaseExpr ce, ScrapType argType, TypeEnv env)
