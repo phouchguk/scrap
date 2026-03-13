@@ -183,4 +183,58 @@ public class TypeCheckerTests
     {
         Assert.Equal("int", TypeOf("f \"b\" ; f = | \"a\" -> 1 | \"b\" -> 2 | _ -> 0"));
     }
+
+    // ── Exhaustive match ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void ExhaustiveMatchAllVariants()
+    {
+        AssertOk(
+            "f (scoop::vanilla) " +
+            "; f = | #vanilla -> 1 | #chocolate -> 2 | #strawberry -> 3 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
+
+    [Fact]
+    public void ExhaustiveMatchWildcard()
+    {
+        AssertOk(
+            "f (scoop::chocolate) " +
+            "; f = | #vanilla -> 1 | _ -> 0 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
+
+    [Fact]
+    public void ExhaustiveMatchVarCatchAll()
+    {
+        AssertOk(
+            "f (scoop::chocolate) " +
+            "; f = | #vanilla -> 1 | x -> 0 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
+
+    [Fact]
+    public void ExhaustiveMatchIntPatternsSkipped()
+    {
+        // No exhaustiveness check for non-variant types — must not throw
+        AssertOk("f 0 ; f = | 0 -> 1 | 1 -> 2");
+    }
+
+    [Fact]
+    public void RejectNonExhaustiveOneMissing()
+    {
+        AssertTypeError(
+            "f (scoop::vanilla) " +
+            "; f = | #vanilla -> 1 | #chocolate -> 2 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
+
+    [Fact]
+    public void RejectNonExhaustiveManyMissing()
+    {
+        AssertTypeError(
+            "f (scoop::vanilla) " +
+            "; f = | #vanilla -> 1 " +
+            "; scoop : #vanilla #chocolate #strawberry");
+    }
 }

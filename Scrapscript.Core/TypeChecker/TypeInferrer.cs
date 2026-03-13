@@ -232,7 +232,30 @@ public class TypeInferrer
             resultType = resultType.Apply(s);
         }
 
+        CheckExhaustiveness(ce, argType.Apply(s), env.ApplySubst(s));
         return (new TFunc(argType.Apply(s), resultType.Apply(s)), s);
+    }
+
+    private void CheckExhaustiveness(CaseExpr ce, ScrapType argType, TypeEnv env)
+    {
+        if (argType is not TName named) return;
+        var typeDef = env.LookupTypeDef(named.Name);
+        if (typeDef == null) return;
+        if (ce.Arms.Any(a => a.Pattern is WildcardPat or VarPat)) return;
+
+        var covered = ce.Arms
+            .Where(a => a.Pattern is VariantPat)
+            .Select(a => ((VariantPat)a.Pattern).Tag)
+            .ToHashSet();
+
+        var missing = typeDef.Variants
+            .Select(v => v.Tag)
+            .Where(tag => !covered.Contains(tag))
+            .ToList();
+
+        if (missing.Count > 0)
+            throw new TypeCheckError(
+                $"Non-exhaustive match on '{named.Name}': missing {string.Join(", ", missing.Select(t => "#" + t))}");
     }
 
     // ── Application ───────────────────────────────────────────────────────────
