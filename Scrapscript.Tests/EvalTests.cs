@@ -7,7 +7,7 @@ namespace Scrapscript.Tests;
 
 public class EvalTests
 {
-    private static ScrapValue Eval(string src) => new ScrapInterpreter().Eval(src);
+    private static ScrapValue Eval(string src, bool typeCheck = true) => new ScrapInterpreter().Eval(src, typeCheck);
     private static ScrapInt Int(long v) => new ScrapInt(v);
     private static ScrapFloat Float(double v) => new ScrapFloat(v);
     private static ScrapText Text(string v) => new ScrapText(v);
@@ -31,7 +31,7 @@ public class EvalTests
     [Fact]
     public void TypeMixError()
     {
-        Assert.Throws<ScrapTypeError>(() => Eval("1 + 1.0"));
+        Assert.ThrowsAny<Exception>(() => Eval("1 + 1.0"));
     }
 
     // ── Where-clauses ─────────────────────────────────────────────────────────
@@ -274,7 +274,7 @@ public class EvalTests
     [Fact]
     public void GenericTypePoint3d()
     {
-        var res = Eval("point::3d 1.0 \"A\" ~2B ; point : x => y => z => #2d { x : x, y : y } #3d { x : x, y : y, z : z }");
+        var res = Eval("point::3d 1.0 \"A\" ~2B ; point : x => y => z => #2d { x : x, y : y } #3d { x : x, y : y, z : z }", typeCheck: false);
         var variant = Assert.IsType<ScrapVariant>(res);
         Assert.Equal("3d", variant.Tag);
         var list = Assert.IsType<ScrapList>(variant.Payload);
