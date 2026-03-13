@@ -20,6 +20,7 @@ public enum TokenType
     Plus,        // +
     Minus,       // -
     Star,        // *
+    Slash,       // /
     PlusPlus,    // ++
     PlusLt,      // +<
     GtPlus,      // >+

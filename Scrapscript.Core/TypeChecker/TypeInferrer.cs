@@ -276,14 +276,26 @@ public class TypeInferrer
     {
         // Track tags whose earlier arm has a catch-all payload (no payload, wildcard, or var)
         var catchAllTags = new HashSet<string>();
+        var seenInts  = new HashSet<long>();
+        var seenTexts = new HashSet<string>();
         foreach (var arm in ce.Arms)
         {
-            if (arm.Pattern is VariantPat vp)
+            switch (arm.Pattern)
             {
-                if (catchAllTags.Contains(vp.Tag))
-                    throw new TypeCheckError($"Redundant pattern: '#{vp.Tag}' is already covered by an earlier arm");
-                if (vp.Payload == null || vp.Payload is WildcardPat or VarPat)
-                    catchAllTags.Add(vp.Tag);
+                case VariantPat vp:
+                    if (catchAllTags.Contains(vp.Tag))
+                        throw new TypeCheckError($"Redundant pattern: '#{vp.Tag}' is already covered by an earlier arm");
+                    if (vp.Payload == null || vp.Payload is WildcardPat or VarPat)
+                        catchAllTags.Add(vp.Tag);
+                    break;
+                case IntPat ip:
+                    if (!seenInts.Add(ip.Value))
+                        throw new TypeCheckError($"Redundant pattern: '{ip.Value}' is already covered by an earlier arm");
+                    break;
+                case TextPat tp when tp.RestName == null:
+                    if (!seenTexts.Add(tp.Prefix))
+                        throw new TypeCheckError($"Redundant pattern: '\"{tp.Prefix}\"' is already covered by an earlier arm");
+                    break;
             }
         }
     }
@@ -344,7 +356,7 @@ public class TypeInferrer
 
         return b.Op switch
         {
-            "+" or "-" or "*" => InferArith(tl, tr, sAll),
+            "+" or "-" or "*" or "/" => InferArith(tl, tr, sAll),
             "++" => InferConcat(tl, tr, sAll),
             "+<" => InferAppend(tl, tr, sAll),
             ">+" => InferCons(tl, tr, sAll),

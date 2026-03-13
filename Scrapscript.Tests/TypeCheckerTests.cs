@@ -240,6 +240,28 @@ public class TypeCheckerTests
 
     // ── Comparison operators ──────────────────────────────────────────────────
 
+    // ── Division ──────────────────────────────────────────────────────────────
+
+    [Fact] public void TypeDivInts()   => Assert.Equal("int",   TypeOf("6 / 2"));
+    [Fact] public void TypeDivFloats() => Assert.Equal("float", TypeOf("6.0 / 2.0"));
+    [Fact] public void RejectDivIntFloat() => AssertTypeError("1 / 1.0");
+
+    // ── Redundant literal arms ─────────────────────────────────────────────────
+
+    [Fact]
+    public void RejectRedundantIntArm()
+    {
+        AssertTypeError("f 1 ; f = | 0 -> \"a\" | 1 -> \"b\" | 0 -> \"c\"");
+    }
+
+    [Fact]
+    public void RejectRedundantTextArm()
+    {
+        AssertTypeError("f \"x\" ; f = | \"a\" -> 1 | \"b\" -> 2 | \"a\" -> 3");
+    }
+
+    // ── Comparison operators ──────────────────────────────────────────────────
+
     [Fact] public void TypeEqInts()    => Assert.Equal("bool", TypeOf("1 == 2"));
     [Fact] public void TypeNeqInts()   => Assert.Equal("bool", TypeOf("1 != 2"));
     [Fact] public void TypeLtInts()    => Assert.Equal("bool", TypeOf("1 < 2"));

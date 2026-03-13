@@ -194,6 +194,7 @@ public class Evaluator
             "+" => Add(left, right),
             "-" => Sub(left, right),
             "*" => Mul(left, right),
+            "/" => Div(left, right),
             "++" => Concat(left, right),
             "+<" => Append(left, right),
             ">+" => Cons(left, right),
@@ -241,6 +242,14 @@ public class Evaluator
         (ScrapInt a, ScrapInt b) => new ScrapInt(a.Value * b.Value),
         (ScrapFloat a, ScrapFloat b) => new ScrapFloat(a.Value * b.Value),
         _ => throw new ScrapTypeError($"Type error: cannot multiply {l.Display()} and {r.Display()}")
+    };
+
+    private static ScrapValue Div(ScrapValue l, ScrapValue r) => (l, r) switch
+    {
+        (ScrapInt a, ScrapInt b) when b.Value == 0 => throw new ScrapTypeError("Division by zero"),
+        (ScrapInt a, ScrapInt b) => new ScrapInt(a.Value / b.Value),
+        (ScrapFloat a, ScrapFloat b) => new ScrapFloat(a.Value / b.Value),
+        _ => throw new ScrapTypeError($"Type error: cannot divide {l.Display()} and {r.Display()}")
     };
 
     private static ScrapValue Concat(ScrapValue l, ScrapValue r) => (l, r) switch

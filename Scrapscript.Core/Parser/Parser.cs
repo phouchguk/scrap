@@ -195,7 +195,7 @@ public class Parser(List<Token> tokens)
     private Expr ParseMulDiv()
     {
         var left = ParseTypeAnnotation();
-        while (Check(TokenType.Star))
+        while (Check(TokenType.Star) || Check(TokenType.Slash))
         {
             var op = Consume().Text;
             var right = ParseTypeAnnotation();

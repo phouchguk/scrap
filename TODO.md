@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 187/187 tests passing
+## Status: 219/219 tests passing
 
 ## Completed
 
@@ -20,13 +20,14 @@
 
 ## Next
 
-- [ ] **Comparison operators** — `==`, `!=`, `<`, `>`, `<=`, `>=`
-  - Lex, parse (below arithmetic, above pipe), eval (returns `#true`/`#false`)
-  - Type check: both sides same type → `bool`; ordering ops require int/float/text
-  - Bool exhaustiveness (matching on `#true`/`#false`) already works via existing TypeDef
-- [ ] **Division operator** — `/` (int and float)
-- [ ] **Duplicate literal arms** — redundant `| 0 -> … | 0 -> …` detection
+- [x] **Comparison operators** — `==`, `!=`, `<`, `>`, `<=`, `>=`; return `bool` (`#true`/`#false`)
+- [x] **Division operator** — `/` for int (truncating) and float
+- [x] **Duplicate literal arms** — redundant `| 0 -> … | 0 -> …` and `| "a" -> … | "a" -> …` detection
+- [x] **REPL session environment** — bindings (`name = expr`) persist across lines; expressions evaluated against accumulated session
+
+## Next
+
 - [ ] **Row polymorphism for records** — `r.field` on unknown record constrains `r` rather than returning fresh type
 - [ ] **Annotation-guided inference for recursive bindings** — use declared type as placeholder
+- [ ] **Modulo operator** — `%` (natural companion to `/`)
 - [ ] **Content addressability** — SHA1 hashing, flat binary format, hash refs (`$sha1~~…`)
-- [ ] **REPL improvements** — persist bindings across lines (session environment)

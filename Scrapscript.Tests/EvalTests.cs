@@ -242,6 +242,15 @@ public class EvalTests
     private static ScrapValue True  => new ScrapVariant("true",  null);
     private static ScrapValue False => new ScrapVariant("false", null);
 
+    // ── Division ──────────────────────────────────────────────────────────────
+
+    [Fact] public void DivInts()       => Assert.Equal(Int(3),   Eval("6 / 2"));
+    [Fact] public void DivIntFloor()   => Assert.Equal(Int(2),   Eval("7 / 3"));
+    [Fact] public void DivFloats()     => Assert.Equal(Float(2.5), Eval("5.0 / 2.0"));
+    [Fact] public void DivByZero()     => Assert.Throws<ScrapTypeError>(() => Eval("1 / 0"));
+
+    // ── Comparison operators ──────────────────────────────────────────────────
+
     [Fact] public void EqIntsTrue()    => Assert.Equal(True,  Eval("1 == 1"));
     [Fact] public void EqIntsFalse()   => Assert.Equal(False, Eval("1 == 2"));
     [Fact] public void NeqIntsTrue()   => Assert.Equal(True,  Eval("1 != 2"));
