@@ -272,9 +272,10 @@ public class EvalTests
     }
 
     [Fact]
-    public void GenericTypePoint3d()
+    public void GenericTypePoint3dPositional()
     {
-        var res = Eval("point::3d 1.0 \"A\" ~2B ; point : x => y => z => #2d { x : x, y : y } #3d { x : x, y : y, z : z }", typeCheck: false);
+        // Positional payloads: #3d x y z — three separate curried args
+        var res = Eval("point::3d 1.0 \"A\" ~2B ; point : x => y => z => #2d x y #3d x y z");
         var variant = Assert.IsType<ScrapVariant>(res);
         Assert.Equal("3d", variant.Tag);
         var list = Assert.IsType<ScrapList>(variant.Payload);
@@ -282,6 +283,19 @@ public class EvalTests
         Assert.Equal(new ScrapFloat(1.0), list.Items[0]);
         Assert.Equal(new ScrapText("A"), list.Items[1]);
         Assert.Equal(new ScrapBytes(new byte[] { 0x2B }), list.Items[2]);
+    }
+
+    [Fact]
+    public void GenericTypePoint3dRecord()
+    {
+        // Record payload: #3d { x : x, y : y, z : z } — single record arg
+        var res = Eval("point::3d { x = 1.0, y = \"A\", z = ~2B } ; point : x => y => z => #2d { x : x, y : y } #3d { x : x, y : y, z : z }");
+        var variant = Assert.IsType<ScrapVariant>(res);
+        Assert.Equal("3d", variant.Tag);
+        var record = Assert.IsType<ScrapRecord>(variant.Payload);
+        Assert.Equal(new ScrapFloat(1.0), record.Fields["x"]);
+        Assert.Equal(new ScrapText("A"), record.Fields["y"]);
+        Assert.Equal(new ScrapBytes(new byte[] { 0x2B }), record.Fields["z"]);
     }
 
     // ── Full worked examples from spec ────────────────────────────────────────
