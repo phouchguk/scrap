@@ -286,6 +286,49 @@ public class TypeCheckerTests
         AssertTypeError("(| #true -> 1) (1 == 1)");
     }
 
+    // ── Modulo ────────────────────────────────────────────────────────────────
+
+    [Fact] public void TypeModInts()   => Assert.Equal("int",   TypeOf("7 % 3"));
+    [Fact] public void TypeModFloats() => Assert.Equal("float", TypeOf("7.0 % 3.0"));
+    [Fact] public void RejectModIntFloat() => AssertTypeError("7 % 3.0");
+
+    // ── Row polymorphism ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void RowPolyFieldAccess()
+    {
+        // f infers as { a : int | ... } -> int
+        Assert.Equal("int", TypeOf("f { a = 1, b = \"x\" } ; f = r -> r.a + 1"));
+    }
+
+    [Fact]
+    public void RowPolyTwoFields()
+    {
+        // f uses both r.a and r.b — both must be int
+        Assert.Equal("int", TypeOf("f { a = 1, b = 2 } ; f = r -> r.a + r.b"));
+    }
+
+    [Fact]
+    public void RowPolyPassedToTwoFunctions()
+    {
+        // g uses r for two open-record functions simultaneously
+        AssertOk("g { a = 1, b = 2 } ; g = r -> f r + r.b ; f = r -> r.a");
+    }
+
+    [Fact]
+    public void RejectMissingField()
+    {
+        // { b = 1 } doesn't have field a
+        AssertTypeError("f { b = 1 } ; f = r -> r.a + 1");
+    }
+
+    [Fact]
+    public void RejectWrongFieldType()
+    {
+        // r.a is text, can't add 1
+        AssertTypeError("f { a = \"hi\" } ; f = r -> r.a + 1");
+    }
+
     // ── Record spread ─────────────────────────────────────────────────────────
 
     [Fact]

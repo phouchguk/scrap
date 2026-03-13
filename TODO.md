@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 219/219 tests passing
+## Status: 230/230 tests passing
 
 ## Completed
 
@@ -25,9 +25,12 @@
 - [x] **Duplicate literal arms** — redundant `| 0 -> … | 0 -> …` and `| "a" -> … | "a" -> …` detection
 - [x] **REPL session environment** — bindings (`name = expr`) persist across lines; expressions evaluated against accumulated session
 
+- [x] **Modulo operator** — `%` for int and float
+- [x] **Row polymorphism** — `r.field` constrains `r` to `{ field: 't | ... }`; multiple field accesses merge via row variables; open records unify correctly with closed record literals
+
 ## Next
 
-- [ ] **Row polymorphism for records** — `r.field` on unknown record constrains `r` rather than returning fresh type
 - [ ] **Annotation-guided inference for recursive bindings** — use declared type as placeholder
-- [ ] **Modulo operator** — `%` (natural companion to `/`)
 - [ ] **Content addressability** — SHA1 hashing, flat binary format, hash refs (`$sha1~~…`)
+- [ ] **Negation operator** — unary `-` on non-literal expressions (e.g. `-(f x)`)
+- [ ] **Integer operations** — `abs`, `min`, `max` builtins

@@ -21,6 +21,7 @@ public enum TokenType
     Minus,       // -
     Star,        // *
     Slash,       // /
+    Percent,     // %
     PlusPlus,    // ++
     PlusLt,      // +<
     GtPlus,      // >+

@@ -9,6 +9,9 @@ public class TypeInferrer
 
     private TVar Fresh() => new TVar($"'t{_nextVar++}");
 
+    // Instance wrapper that passes Fresh to Substitution.Unify for row-polymorphism support
+    private Substitution Unify(ScrapType t1, ScrapType t2) => Substitution.Unify(t1, t2, Fresh);
+
     // ── Public entry point ────────────────────────────────────────────────────
 
     public static void Check(Expr expr, TypeEnv env)
@@ -71,7 +74,7 @@ public class TypeInferrer
         foreach (var item in l.Items.Skip(1))
         {
             var (t, s2) = Infer(env.ApplySubst(s), item);
-            var s3 = Substitution.Unify(itemType.Apply(s2), t);
+            var s3 = Unify(itemType.Apply(s2), t);
             s = s.Compose(s2).Compose(s3);
             itemType = itemType.Apply(s);
         }
@@ -118,11 +121,31 @@ public class TypeInferrer
                 throw new TypeCheckError($"Record has no field '{ra.Field}'");
             return (fieldType.Apply(s), s);
         }
+
+        if (recType is TOpenRecord or)
+        {
+            if (or.Fields.TryGetValue(ra.Field, out var fieldType))
+                return (fieldType.Apply(s), s);
+            // Field not yet known — extend via the row var
+            var freshField = Fresh();
+            var freshRow   = Fresh();
+            var sExtend = Unify(new TVar(or.RowVar),
+                new TOpenRecord(ImmutableDictionary<string, ScrapType>.Empty.Add(ra.Field, freshField), freshRow.Name));
+            s = s.Compose(sExtend);
+            return (freshField, s);
+        }
+
         if (recType is TVar)
         {
-            // Unknown record type — return a fresh type
-            return (Fresh(), s);
+            // Constrain this variable to be a record with at least this field
+            var freshField = Fresh();
+            var freshRow   = Fresh();
+            var sUnify = Unify(recType,
+                new TOpenRecord(ImmutableDictionary<string, ScrapType>.Empty.Add(ra.Field, freshField), freshRow.Name));
+            s = s.Compose(sUnify);
+            return (freshField, s);
         }
+
         throw new TypeCheckError($"Cannot access field '{ra.Field}' on {recType}");
     }
 
@@ -172,7 +195,7 @@ public class TypeInferrer
                 // Unify with placeholder if one exists
                 if (placeholders.TryGetValue(name, out var placeholder))
                 {
-                    var s3 = Substitution.Unify(placeholder.Apply(s), patType.Apply(s));
+                    var s3 = Unify(placeholder.Apply(s), patType.Apply(s));
                     s = s.Compose(s3);
                 }
                 // Generalize and rebind
@@ -207,7 +230,7 @@ public class TypeInferrer
         var (inferredType, s) = Infer(env, ta.Value);
         var freeNames = CollectFreeTypeNames(ta.TypeDef, env);
         var declaredType = env.ConvertTypeExpr(ta.TypeDef, freeNames);
-        var sUnify = Substitution.Unify(inferredType.Apply(s), declaredType);
+        var sUnify = Unify(inferredType.Apply(s), declaredType);
         return (inferredType.Apply(s).Apply(sUnify), s.Compose(sUnify));
     }
 
@@ -253,7 +276,7 @@ public class TypeInferrer
             var patConstraint = PatternType(arm.Pattern, argType.Apply(s), env.ApplySubst(s));
             if (patConstraint != null)
             {
-                var sUnify = Substitution.Unify(argType.Apply(s), patConstraint.Apply(s));
+                var sUnify = Unify(argType.Apply(s), patConstraint.Apply(s));
                 s = s.Compose(sUnify);
             }
 
@@ -262,7 +285,7 @@ public class TypeInferrer
             s = s.Compose(sBody);
 
             // All bodies must have the same result type
-            var sResult = Substitution.Unify(resultType.Apply(s), bodyType.Apply(s));
+            var sResult = Unify(resultType.Apply(s), bodyType.Apply(s));
             s = s.Compose(sResult);
             resultType = resultType.Apply(s);
         }
@@ -329,7 +352,7 @@ public class TypeInferrer
         var (fnType, s1) = Infer(env, a.Fn);
         var (argType, s2) = Infer(env.ApplySubst(s1), a.Arg);
         var retType = Fresh();
-        var s3 = Substitution.Unify(fnType.Apply(s2), new TFunc(argType, retType));
+        var s3 = Unify(fnType.Apply(s2), new TFunc(argType, retType));
         var s = s1.Compose(s2).Compose(s3);
         return (retType.Apply(s), s);
     }
@@ -344,8 +367,8 @@ public class TypeInferrer
             var (tf, sf) = Infer(env, b.Left);
             var (tg, sg) = Infer(env.ApplySubst(sf), b.Right);
             var a = Fresh(); var bv = Fresh(); var c = Fresh();
-            var s1 = Substitution.Unify(tf.Apply(sg), new TFunc(a, bv));
-            var s2 = Substitution.Unify(tg.Apply(s1), new TFunc(bv.Apply(s1), c));
+            var s1 = Unify(tf.Apply(sg), new TFunc(a, bv));
+            var s2 = Unify(tg.Apply(s1), new TFunc(bv.Apply(s1), c));
             var s = sf.Compose(sg).Compose(s1).Compose(s2);
             return (new TFunc(a.Apply(s), c.Apply(s)), s);
         }
@@ -356,7 +379,7 @@ public class TypeInferrer
 
         return b.Op switch
         {
-            "+" or "-" or "*" or "/" => InferArith(tl, tr, sAll),
+            "+" or "-" or "*" or "/" or "%" => InferArith(tl, tr, sAll),
             "++" => InferConcat(tl, tr, sAll),
             "+<" => InferAppend(tl, tr, sAll),
             ">+" => InferCons(tl, tr, sAll),
@@ -369,7 +392,7 @@ public class TypeInferrer
     private (ScrapType, Substitution) InferArith(ScrapType tl, ScrapType tr, Substitution s)
     {
         // Both operands must be the same numeric type (int or float)
-        var sUnify = Substitution.Unify(tl.Apply(s), tr.Apply(s));
+        var sUnify = Unify(tl.Apply(s), tr.Apply(s));
         s = s.Compose(sUnify);
         var unified = tl.Apply(s);
         if (unified is not TInt and not TFloat and not TVar)
@@ -380,7 +403,7 @@ public class TypeInferrer
     private (ScrapType, Substitution) InferConcat(ScrapType tl, ScrapType tr, Substitution s)
     {
         // ++ works on text, list, or bytes — both sides must match
-        var sUnify = Substitution.Unify(tl.Apply(s), tr.Apply(s));
+        var sUnify = Unify(tl.Apply(s), tr.Apply(s));
         s = s.Compose(sUnify);
         var unified = tl.Apply(s);
         if (unified is not TText and not TList and not TBytes and not TVar)
@@ -394,29 +417,27 @@ public class TypeInferrer
         var tlResolved = tl.Apply(s);
         if (tlResolved is TBytes)
         {
-            var sUnify = Substitution.Unify(tr.Apply(s), TBytes.Instance);
+            var sUnify = Unify(tr.Apply(s), TBytes.Instance);
             return (TBytes.Instance, s.Compose(sUnify));
         }
         // list +< element
         var itemType = Fresh();
-        var s1 = Substitution.Unify(tlResolved, new TList(itemType));
+        var s1 = Unify(tlResolved, new TList(itemType));
         s = s.Compose(s1);
-        var s2 = Substitution.Unify(tr.Apply(s), itemType.Apply(s));
+        var s2 = Unify(tr.Apply(s), itemType.Apply(s));
         s = s.Compose(s2);
         return (new TList(itemType.Apply(s)), s);
     }
 
-    private static (ScrapType, Substitution) InferEquality(ScrapType tl, ScrapType tr, Substitution s)
+    private (ScrapType, Substitution) InferEquality(ScrapType tl, ScrapType tr, Substitution s)
     {
-        // Both sides must unify; result is bool
-        var sUnify = Substitution.Unify(tl.Apply(s), tr.Apply(s));
+        var sUnify = Unify(tl.Apply(s), tr.Apply(s));
         return (new TName("bool"), s.Compose(sUnify));
     }
 
-    private static (ScrapType, Substitution) InferComparison(ScrapType tl, ScrapType tr, Substitution s)
+    private (ScrapType, Substitution) InferComparison(ScrapType tl, ScrapType tr, Substitution s)
     {
-        // Both sides must unify and be an ordered type
-        var sUnify = Substitution.Unify(tl.Apply(s), tr.Apply(s));
+        var sUnify = Unify(tl.Apply(s), tr.Apply(s));
         s = s.Compose(sUnify);
         var unified = tl.Apply(s);
         if (unified is not TInt and not TFloat and not TText and not TVar)
@@ -428,9 +449,9 @@ public class TypeInferrer
     {
         // element >+ list
         var itemType = Fresh();
-        var s1 = Substitution.Unify(tr.Apply(s), new TList(itemType));
+        var s1 = Unify(tr.Apply(s), new TList(itemType));
         s = s.Compose(s1);
-        var s2 = Substitution.Unify(tl.Apply(s), itemType.Apply(s));
+        var s2 = Unify(tl.Apply(s), itemType.Apply(s));
         s = s.Compose(s2);
         return (new TList(itemType.Apply(s)), s);
     }
@@ -532,6 +553,7 @@ public class TypeInferrer
                 break;
             case RecordPat rp:
                 var fields = matchType is TRecord rt ? rt.Fields
+                    : matchType is TOpenRecord ort ? ort.Fields
                     : ImmutableDictionary<string, ScrapType>.Empty;
                 foreach (var (field, fieldPat) in rp.Fields)
                 {

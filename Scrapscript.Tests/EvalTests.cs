@@ -242,6 +242,12 @@ public class EvalTests
     private static ScrapValue True  => new ScrapVariant("true",  null);
     private static ScrapValue False => new ScrapVariant("false", null);
 
+    // ── Modulo ────────────────────────────────────────────────────────────────
+
+    [Fact] public void ModInts()     => Assert.Equal(Int(1),   Eval("7 % 3"));
+    [Fact] public void ModFloats()   => Assert.Equal(Float(1.0), Eval("7.0 % 3.0"));
+    [Fact] public void ModByZero()   => Assert.Throws<ScrapTypeError>(() => Eval("5 % 0"));
+
     // ── Division ──────────────────────────────────────────────────────────────
 
     [Fact] public void DivInts()       => Assert.Equal(Int(3),   Eval("6 / 2"));

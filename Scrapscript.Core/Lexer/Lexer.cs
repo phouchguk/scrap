@@ -143,6 +143,8 @@ public class Lexer(string source)
                 Advance(); return Make(TokenType.Star, "*", line, col);
             case '/':
                 Advance(); return Make(TokenType.Slash, "/", line, col);
+            case '%':
+                Advance(); return Make(TokenType.Percent, "%", line, col);
             case '>':
                 if (Peek() == '+') { Advance(2); return Make(TokenType.GtPlus, ">+", line, col); }
                 if (Peek() == '>') { Advance(2); return Make(TokenType.GtGt, ">>", line, col); }

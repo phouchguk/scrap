@@ -69,6 +69,32 @@ public record TRecord(ImmutableDictionary<string, ScrapType> Fields) : ScrapType
         $"{{ {string.Join(", ", Fields.Select(kv => $"{kv.Key} : {kv.Value}"))} }}";
 }
 
+// Open record: { known fields | row-var } — represents a record with at least these fields.
+// RowVar is a type-variable name that can be further constrained by additional field accesses.
+public record TOpenRecord(ImmutableDictionary<string, ScrapType> Fields, string RowVar) : ScrapType
+{
+    public override ScrapType Apply(Substitution s)
+    {
+        var fields = Fields.ToImmutableDictionary(kv => kv.Key, kv => kv.Value.Apply(s));
+        var rowResolved = new TVar(RowVar).Apply(s);
+        return rowResolved switch
+        {
+            TOpenRecord ext =>
+                // Flatten: merge fields (our known fields take priority), continue with ext's row
+                new TOpenRecord(ext.Fields.SetItems(fields), ext.RowVar).Apply(s),
+            TVar rv =>
+                new TOpenRecord(fields, rv.Name),
+            _ =>
+                // Row was closed (e.g. bound to THole or TRecord remainder) — become a closed record
+                new TRecord(fields)
+        };
+    }
+    public override IEnumerable<string> FreeVars() =>
+        Fields.Values.SelectMany(t => t.FreeVars()).Append(RowVar);
+    public override string ToString() =>
+        $"{{ {string.Join(", ", Fields.Select(kv => $"{kv.Key} : {kv.Value}"))} | ... }}";
+}
+
 public record TFunc(ScrapType From, ScrapType To) : ScrapType
 {
     public override ScrapType Apply(Substitution s) => new TFunc(From.Apply(s), To.Apply(s));
