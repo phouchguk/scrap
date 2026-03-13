@@ -237,6 +237,26 @@ public class EvalTests
         Assert.Equal(new byte[] { 0x00, 0xFF }, bytes.Value);
     }
 
+    // ── Comparison operators ──────────────────────────────────────────────────
+
+    private static ScrapValue True  => new ScrapVariant("true",  null);
+    private static ScrapValue False => new ScrapVariant("false", null);
+
+    [Fact] public void EqIntsTrue()    => Assert.Equal(True,  Eval("1 == 1"));
+    [Fact] public void EqIntsFalse()   => Assert.Equal(False, Eval("1 == 2"));
+    [Fact] public void NeqIntsTrue()   => Assert.Equal(True,  Eval("1 != 2"));
+    [Fact] public void NeqIntsFalse()  => Assert.Equal(False, Eval("1 != 1"));
+    [Fact] public void LtTrue()        => Assert.Equal(True,  Eval("1 < 2"));
+    [Fact] public void LtFalse()       => Assert.Equal(False, Eval("2 < 1"));
+    [Fact] public void GtTrue()        => Assert.Equal(True,  Eval("3 > 2"));
+    [Fact] public void LtEqTrue()      => Assert.Equal(True,  Eval("2 <= 2"));
+    [Fact] public void GtEqTrue()      => Assert.Equal(True,  Eval("3 >= 3"));
+    [Fact] public void EqTextTrue()    => Assert.Equal(True,  Eval("\"a\" == \"a\""));
+    [Fact] public void EqTextFalse()   => Assert.Equal(False, Eval("\"a\" == \"b\""));
+    [Fact] public void LtTextTrue()    => Assert.Equal(True,  Eval("\"a\" < \"b\""));
+    [Fact] public void EqFloatTrue()   => Assert.Equal(True,  Eval("1.0 == 1.0"));
+    [Fact] public void CompInExpr()    => Assert.Equal(Int(1), Eval("f 3 ; f = n -> (| #true -> 1 | #false -> 0) (n > 2)"));
+
     // ── Built-ins ─────────────────────────────────────────────────────────────
 
     [Fact] public void ToFloat() => Assert.Equal(Float(3.0), Eval("to-float 3"));

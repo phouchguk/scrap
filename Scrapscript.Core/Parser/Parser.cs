@@ -127,7 +127,21 @@ public class Parser(List<Token> tokens)
 
     private Expr ParseBinOp()
     {
-        return ParseConcat();
+        return ParseComparison();
+    }
+
+    private Expr ParseComparison()
+    {
+        var left = ParseConcat();
+        while (Check(TokenType.EqEq) || Check(TokenType.NotEq) ||
+               Check(TokenType.Lt)   || Check(TokenType.Gt)    ||
+               Check(TokenType.LtEq) || Check(TokenType.GtEq))
+        {
+            var op = Consume().Text;
+            var right = ParseConcat();
+            left = new BinOpExpr(op, left, right);
+        }
+        return left;
     }
 
     private Expr ParseConcat()

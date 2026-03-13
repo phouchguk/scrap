@@ -144,16 +144,22 @@ public class Lexer(string source)
             case '>':
                 if (Peek() == '+') { Advance(2); return Make(TokenType.GtPlus, ">+", line, col); }
                 if (Peek() == '>') { Advance(2); return Make(TokenType.GtGt, ">>", line, col); }
-                Advance(); throw new LexError($"Unexpected '>' at {line}:{col}");
+                if (Peek() == '=') { Advance(2); return Make(TokenType.GtEq, ">=", line, col); }
+                Advance(); return Make(TokenType.Gt, ">", line, col);
             case '|':
                 if (Peek() == '>') { Advance(2); return Make(TokenType.PipeGt, "|>", line, col); }
                 Advance(); return Make(TokenType.Pipe, "|", line, col);
             case '<':
                 if (Peek() == '|') { Advance(2); return Make(TokenType.LtPipe, "<|", line, col); }
-                Advance(); throw new LexError($"Unexpected '<' at {line}:{col}");
+                if (Peek() == '=') { Advance(2); return Make(TokenType.LtEq, "<=", line, col); }
+                Advance(); return Make(TokenType.Lt, "<", line, col);
             case '=':
                 if (Peek() == '>') { Advance(2); return Make(TokenType.FatArrow, "=>", line, col); }
+                if (Peek() == '=') { Advance(2); return Make(TokenType.EqEq, "==", line, col); }
                 Advance(); return Make(TokenType.Equals, "=", line, col);
+            case '!':
+                if (Peek() == '=') { Advance(2); return Make(TokenType.NotEq, "!=", line, col); }
+                Advance(); throw new LexError($"Unexpected '!' at {line}:{col}");
             case ':':
                 if (Peek() == ':') { Advance(2); return Make(TokenType.ColonColon, "::", line, col); }
                 Advance(); return Make(TokenType.Colon, ":", line, col);

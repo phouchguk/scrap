@@ -197,6 +197,12 @@ public class Evaluator
             "++" => Concat(left, right),
             "+<" => Append(left, right),
             ">+" => Cons(left, right),
+            "==" => ScrapBool(left.Equals(right)),
+            "!=" => ScrapBool(!left.Equals(right)),
+            "<"  => OrderOp(left, right, r => r < 0),
+            ">"  => OrderOp(left, right, r => r > 0),
+            "<=" => OrderOp(left, right, r => r <= 0),
+            ">=" => OrderOp(left, right, r => r >= 0),
             _ => throw new ScrapTypeError($"Unknown operator: {b.Op}")
         };
     }
@@ -214,6 +220,21 @@ public class Evaluator
         (ScrapFloat a, ScrapFloat b) => new ScrapFloat(a.Value - b.Value),
         _ => throw new ScrapTypeError($"Type error: cannot subtract {l.Display()} and {r.Display()}")
     };
+
+    private static ScrapValue ScrapBool(bool b) =>
+        new ScrapVariant(b ? "true" : "false", null);
+
+    private static ScrapValue OrderOp(ScrapValue l, ScrapValue r, Func<int, bool> pred)
+    {
+        int cmp = (l, r) switch
+        {
+            (ScrapInt a, ScrapInt b)     => a.Value.CompareTo(b.Value),
+            (ScrapFloat a, ScrapFloat b) => a.Value.CompareTo(b.Value),
+            (ScrapText a, ScrapText b)   => string.Compare(a.Value, b.Value, StringComparison.Ordinal),
+            _ => throw new ScrapTypeError($"Type error: cannot compare {l.Display()} and {r.Display()}")
+        };
+        return ScrapBool(pred(cmp));
+    }
 
     private static ScrapValue Mul(ScrapValue l, ScrapValue r) => (l, r) switch
     {

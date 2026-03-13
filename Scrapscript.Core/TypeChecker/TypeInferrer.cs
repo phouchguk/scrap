@@ -348,6 +348,8 @@ public class TypeInferrer
             "++" => InferConcat(tl, tr, sAll),
             "+<" => InferAppend(tl, tr, sAll),
             ">+" => InferCons(tl, tr, sAll),
+            "==" or "!=" => InferEquality(tl, tr, sAll),
+            "<" or ">" or "<=" or ">=" => InferComparison(tl, tr, sAll),
             _ => throw new TypeCheckError($"Unknown operator: {b.Op}")
         };
     }
@@ -390,6 +392,24 @@ public class TypeInferrer
         var s2 = Substitution.Unify(tr.Apply(s), itemType.Apply(s));
         s = s.Compose(s2);
         return (new TList(itemType.Apply(s)), s);
+    }
+
+    private static (ScrapType, Substitution) InferEquality(ScrapType tl, ScrapType tr, Substitution s)
+    {
+        // Both sides must unify; result is bool
+        var sUnify = Substitution.Unify(tl.Apply(s), tr.Apply(s));
+        return (new TName("bool"), s.Compose(sUnify));
+    }
+
+    private static (ScrapType, Substitution) InferComparison(ScrapType tl, ScrapType tr, Substitution s)
+    {
+        // Both sides must unify and be an ordered type
+        var sUnify = Substitution.Unify(tl.Apply(s), tr.Apply(s));
+        s = s.Compose(sUnify);
+        var unified = tl.Apply(s);
+        if (unified is not TInt and not TFloat and not TText and not TVar)
+            throw new TypeCheckError($"Ordering comparison requires int, float, or text, got {unified}");
+        return (new TName("bool"), s);
     }
 
     private (ScrapType, Substitution) InferCons(ScrapType tl, ScrapType tr, Substitution s)

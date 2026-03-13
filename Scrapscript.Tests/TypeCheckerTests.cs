@@ -238,6 +238,32 @@ public class TypeCheckerTests
             "; scoop : #vanilla #chocolate #strawberry");
     }
 
+    // ── Comparison operators ──────────────────────────────────────────────────
+
+    [Fact] public void TypeEqInts()    => Assert.Equal("bool", TypeOf("1 == 2"));
+    [Fact] public void TypeNeqInts()   => Assert.Equal("bool", TypeOf("1 != 2"));
+    [Fact] public void TypeLtInts()    => Assert.Equal("bool", TypeOf("1 < 2"));
+    [Fact] public void TypeGtFloats()  => Assert.Equal("bool", TypeOf("1.0 > 2.0"));
+    [Fact] public void TypeLtEqText()  => Assert.Equal("bool", TypeOf("\"a\" <= \"b\""));
+
+    [Fact]
+    public void RejectEqIntText() => AssertTypeError("1 == \"hello\"");
+
+    [Fact]
+    public void RejectLtOnList() => AssertTypeError("[1] < [2]");
+
+    [Fact]
+    public void BoolExhaustivenessOk()
+    {
+        AssertOk("(| #true -> 1 | #false -> 0) (1 == 1)");
+    }
+
+    [Fact]
+    public void RejectNonExhaustiveBool()
+    {
+        AssertTypeError("(| #true -> 1) (1 == 1)");
+    }
+
     // ── Record spread ─────────────────────────────────────────────────────────
 
     [Fact]

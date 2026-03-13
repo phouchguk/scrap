@@ -32,6 +32,12 @@ public enum TokenType
     Colon,       // :
     Semicolon,   // ;
     Equals,      // =
+    EqEq,        // ==
+    NotEq,       // !=
+    Lt,          // <
+    Gt,          // >
+    LtEq,        // <=
+    GtEq,        // >=
     Pipe,        // |
     DotDot,      // ..
     At,          // @
