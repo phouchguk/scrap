@@ -355,6 +355,26 @@ public class EvalTests
         Assert.Equal(new ScrapBytes(new byte[] { 0x2B }), record.Fields["z"]);
     }
 
+    // ── Recursion ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void FactorialBase() =>
+        Assert.Equal(Int(1), Eval("factorial 0 ; factorial = | 0 -> 1 | n -> n * factorial (n - 1)"));
+
+    [Fact]
+    public void FactorialTen() =>
+        Assert.Equal(Int(3628800), Eval("factorial 10 ; factorial = | 0 -> 1 | n -> n * factorial (n - 1)"));
+
+    [Fact]
+    public void FactorialWithAnnotation() =>
+        Assert.Equal(Int(120), Eval("factorial 5 ; factorial : int -> int = | 0 -> 1 | n -> n * factorial (n - 1)"));
+
+    [Fact]
+    public void FactorialViaMap() =>
+        Assert.Equal(
+            new ScrapList(ImmutableList.Create<ScrapValue>(Int(1), Int(1), Int(2), Int(6), Int(24), Int(120))),
+            Eval("list/map factorial [0, 1, 2, 3, 4, 5] ; factorial = | 0 -> 1 | n -> n * factorial (n - 1)"));
+
     // ── Full worked examples from spec ────────────────────────────────────────
 
     [Fact] public void HelloWorld() => Assert.Equal(Text("hello world"), Eval("\"hello world\""));
