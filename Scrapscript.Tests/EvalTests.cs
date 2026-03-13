@@ -242,6 +242,28 @@ public class EvalTests
     private static ScrapValue True  => new ScrapVariant("true",  null);
     private static ScrapValue False => new ScrapVariant("false", null);
 
+    // ── Negation ──────────────────────────────────────────────────────────────
+
+    [Fact] public void NegateVar()   => Assert.Equal(Int(-5),  Eval("-x ; x = 5"));
+    [Fact] public void NegateParen() => Assert.Equal(Int(-6),  Eval("-(f 3) ; f = n -> n * 2"));
+    [Fact] public void NegateFloat() => Assert.Equal(Float(-1.5), Eval("-1.5"));
+
+    // ── list/map, list/filter, list/fold ──────────────────────────────────────
+
+    [Fact] public void ListMap() =>
+        Assert.Equal(new ScrapList(ImmutableList.Create<ScrapValue>(Int(2), Int(4), Int(6))),
+            Eval("list/map (n -> n * 2) [1, 2, 3]"));
+
+    [Fact] public void ListFilter() =>
+        Assert.Equal(new ScrapList(ImmutableList.Create<ScrapValue>(Int(2), Int(4))),
+            Eval("list/filter (n -> n % 2 == 0) [1, 2, 3, 4]"));
+
+    [Fact] public void ListFold() =>
+        Assert.Equal(Int(10), Eval("list/fold (acc -> n -> acc + n) 0 [1, 2, 3, 4]"));
+
+    [Fact] public void ListFoldText() =>
+        Assert.Equal(Text("abc"), Eval("list/fold (acc -> s -> acc ++ s) \"\" [\"a\", \"b\", \"c\"]"));
+
     // ── Modulo ────────────────────────────────────────────────────────────────
 
     [Fact] public void ModInts()     => Assert.Equal(Int(1),   Eval("7 % 3"));

@@ -45,6 +45,7 @@ public class TypeInferrer
             CaseExpr ce => InferCase(env, ce),
             ApplyExpr a => InferApply(env, a),
             BinOpExpr b => InferBinOp(env, b),
+            NegExpr n   => InferNeg(env, n),
 
             ConstructorExpr c => InferConstructor(env, c),
             TypeAnnotation ta => InferTypeAnnotation(env, ta),
@@ -387,6 +388,15 @@ public class TypeInferrer
             "<" or ">" or "<=" or ">=" => InferComparison(tl, tr, sAll),
             _ => throw new TypeCheckError($"Unknown operator: {b.Op}")
         };
+    }
+
+    private (ScrapType, Substitution) InferNeg(TypeEnv env, NegExpr n)
+    {
+        var (t, s) = Infer(env, n.Operand);
+        var resolved = t.Apply(s);
+        if (resolved is not TInt and not TFloat and not TVar)
+            throw new TypeCheckError($"Negation requires int or float, got {resolved}");
+        return (resolved, s);
     }
 
     private (ScrapType, Substitution) InferArith(ScrapType tl, ScrapType tr, Substitution s)

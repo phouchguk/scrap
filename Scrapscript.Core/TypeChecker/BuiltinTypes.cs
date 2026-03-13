@@ -49,6 +49,13 @@ public static class BuiltinTypes
         env.Bind("list/length", Scheme(["a"], new TFunc(listA, TInt.Instance)));
         env.Bind("list/repeat", Scheme(["a"], Func(TInt.Instance, a, listA)));
 
+        var b2 = new TVar("b");
+        var listB2 = new TList(b2);
+        var bool_ = new TName("bool");
+        env.Bind("list/map",    Scheme(["a", "b"], Func(new TFunc(a, b2), listA, listB2)));
+        env.Bind("list/filter", Scheme(["a"],       Func(new TFunc(a, bool_), listA, listA)));
+        env.Bind("list/fold",   Scheme(["a", "b"],  Func(new TFunc(b2, new TFunc(a, b2)), b2, listA, b2)));
+
         // Text module
         env.Bind("text/length", Scheme([], new TFunc(TText.Instance, TInt.Instance)));
         env.Bind("text/repeat", Scheme([], Func(TInt.Instance, TText.Instance, TText.Instance)));

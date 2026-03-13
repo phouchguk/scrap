@@ -286,6 +286,29 @@ public class TypeCheckerTests
         AssertTypeError("(| #true -> 1) (1 == 1)");
     }
 
+    // ── Negation ──────────────────────────────────────────────────────────────
+
+    [Fact] public void TypeNegateInt()   => Assert.Equal("int",   TypeOf("-x ; x = 5"));
+    [Fact] public void TypeNegateFloat() => Assert.Equal("float", TypeOf("-x ; x = 1.5"));
+    [Fact] public void RejectNegateText() => AssertTypeError("-x ; x = \"hi\"");
+
+    // ── list/map, list/filter, list/fold ──────────────────────────────────────
+
+    [Fact] public void TypeListMap() =>
+        Assert.Equal("list(int)", TypeOf("list/map (n -> n * 2) [1, 2, 3]"));
+
+    [Fact] public void TypeListMapPolymorphic() =>
+        Assert.Equal("list(text)", TypeOf("list/map (n -> \"x\") [1, 2, 3]"));
+
+    [Fact] public void TypeListFilter() =>
+        Assert.Equal("list(int)", TypeOf("list/filter (n -> n == 0) [1, 2, 3]"));
+
+    [Fact] public void TypeListFold() =>
+        Assert.Equal("int", TypeOf("list/fold (acc -> n -> acc + n) 0 [1, 2, 3]"));
+
+    [Fact] public void RejectListMapWrongFn() =>
+        AssertTypeError("list/map (n -> n + 1) [\"a\", \"b\"]");
+
     // ── Modulo ────────────────────────────────────────────────────────────────
 
     [Fact] public void TypeModInts()   => Assert.Equal("int",   TypeOf("7 % 3"));

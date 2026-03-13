@@ -64,6 +64,31 @@ public static class BuiltinEnv
             _ => throw new ScrapTypeError($"list/repeat: expected int as first argument")
         }));
 
+        env.Set("list/map", new ScrapBuiltin("list/map", f =>
+            new ScrapBuiltin("list/map(f)", lst => lst switch
+            {
+                ScrapList l => new ScrapList(l.Items.Select(item => Evaluator.ApplyFunction(f, item)).ToImmutableList()),
+                _ => throw new ScrapTypeError("list/map: expected list")
+            })));
+
+        env.Set("list/filter", new ScrapBuiltin("list/filter", f =>
+            new ScrapBuiltin("list/filter(f)", lst => lst switch
+            {
+                ScrapList l => new ScrapList(l.Items
+                    .Where(item => Evaluator.ApplyFunction(f, item) is ScrapVariant { Tag: "true" })
+                    .ToImmutableList()),
+                _ => throw new ScrapTypeError("list/filter: expected list")
+            })));
+
+        env.Set("list/fold", new ScrapBuiltin("list/fold", f =>
+            new ScrapBuiltin("list/fold(f)", init =>
+                new ScrapBuiltin("list/fold(f,init)", lst => lst switch
+                {
+                    ScrapList l => l.Items.Aggregate(init, (acc, item) =>
+                        Evaluator.ApplyFunction(Evaluator.ApplyFunction(f, acc), item)),
+                    _ => throw new ScrapTypeError("list/fold: expected list")
+                }))));
+
         // text module
         env.Set("text/length", new ScrapBuiltin("text/length", v => v switch
         {

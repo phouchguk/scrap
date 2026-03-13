@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 230/230 tests passing
+## Status: 245/245 tests passing
 
 ## Completed
 
@@ -32,5 +32,5 @@
 
 - [ ] **Annotation-guided inference for recursive bindings** — use declared type as placeholder
 - [ ] **Content addressability** — SHA1 hashing, flat binary format, hash refs (`$sha1~~…`)
-- [ ] **Negation operator** — unary `-` on non-literal expressions (e.g. `-(f x)`)
-- [ ] **Integer operations** — `abs`, `min`, `max` builtins
+- [x] **Negation operator** — `NegExpr` AST node; `-x` and `-(f x)` work for int and float
+- [x] **`list/map`, `list/filter`, `list/fold`** — polymorphic higher-order list builtins with full type inference

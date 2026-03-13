@@ -33,6 +33,12 @@ public class Evaluator
 
             ApplyExpr a => EvalApply(a, env),
             BinOpExpr b => EvalBinOp(b, env),
+            NegExpr n => Eval(n.Operand, env) switch
+            {
+                ScrapInt i   => new ScrapInt(-i.Value),
+                ScrapFloat f => new ScrapFloat(-f.Value),
+                var v => throw new ScrapTypeError($"Type error: cannot negate {v.Display()}")
+            },
 
             ConstructorExpr c => EvalConstructor(c, env),
             TypeAnnotation ta => Eval(ta.Value, env),  // ignore type annotations at runtime

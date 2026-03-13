@@ -49,6 +49,9 @@ public record ApplyExpr(Expr Fn, Expr Arg) : Expr;
 // Binary operations
 public record BinOpExpr(string Op, Expr Left, Expr Right) : Expr;
 
+// Unary negation: -expr
+public record NegExpr(Expr Operand) : Expr;
+
 // Pipe: left |> right  becomes ApplyExpr(right, left)
 // Handled in parser, no separate node needed.
 

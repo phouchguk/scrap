@@ -368,13 +368,14 @@ public class Parser(List<Token> tokens)
             case TokenType.LBrace:
                 return ParseRecord();
             case TokenType.Minus:
-                // Unary minus: -n or -n.f
+                // Unary minus: -n, -n.f, or -(expr)
                 Consume();
                 if (Current.Type == TokenType.Int)
                     return new IntLit(-long.Parse(Consume().Text));
                 if (Current.Type == TokenType.Float)
                     return new FloatLit(-double.Parse(Consume().Text, System.Globalization.CultureInfo.InvariantCulture));
-                throw new ParseError($"Expected number after unary minus at {tok.Line}:{tok.Col}");
+                // General negation
+                return new NegExpr(ParseAtom());
             default:
                 throw new ParseError($"Unexpected token {tok.Type}({tok.Text}) at {tok.Line}:{tok.Col}");
         }
