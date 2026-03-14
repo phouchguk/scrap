@@ -1,11 +1,17 @@
 using System.Collections.Immutable;
+using Scrapscript.Core.Eval;
 using Scrapscript.Core.Parser;
+using Scrapscript.Core.Scrapyard;
+using Scrapscript.Core.Serialization;
 
 namespace Scrapscript.Core.TypeChecker;
 
 public class TypeInferrer
 {
     private int _nextVar = 0;
+    private readonly LocalYard? _yard;
+
+    public TypeInferrer(LocalYard? yard = null) { _yard = yard; }
 
     private TVar Fresh() => new TVar($"'t{_nextVar++}");
 
@@ -14,9 +20,9 @@ public class TypeInferrer
 
     // ── Public entry point ────────────────────────────────────────────────────
 
-    public static void Check(Expr expr, TypeEnv env)
+    public static void Check(Expr expr, TypeEnv env, LocalYard? yard = null)
     {
-        var inferrer = new TypeInferrer();
+        var inferrer = new TypeInferrer(yard);
         inferrer.Infer(env, expr);
     }
 
@@ -34,7 +40,7 @@ public class TypeInferrer
             HoleLit => (THole.Instance, Substitution.Empty),
 
             Var v => InferVar(env, v),
-            HashRef => (Fresh(), Substitution.Empty), // hash refs are opaque for now
+            HashRef r => InferHashRef(r),
 
             ListExpr l => InferList(env, l),
             RecordExpr r => InferRecord(env, r),
@@ -63,6 +69,28 @@ public class TypeInferrer
             throw new TypeCheckError($"Unbound variable: {v.Name}");
         return (scheme!.Instantiate(Fresh), Substitution.Empty);
     }
+
+    // ── HashRef ───────────────────────────────────────────────────────────────
+
+    private (ScrapType, Substitution) InferHashRef(HashRef r)
+    {
+        if (_yard is null) return (Fresh(), Substitution.Empty);
+        var flat = _yard.Pull(r.Ref);
+        if (flat is null) return (Fresh(), Substitution.Empty);
+        return (TypeFromValue(FlatDecoder.Decode(flat)), Substitution.Empty);
+    }
+
+    private ScrapType TypeFromValue(ScrapValue v) => v switch
+    {
+        ScrapInt    => TInt.Instance,
+        ScrapFloat  => TFloat.Instance,
+        ScrapText   => TText.Instance,
+        ScrapBytes  => TBytes.Instance,
+        ScrapHole   => THole.Instance,
+        ScrapList l => l.Items.Count == 0 ? new TList(Fresh()) : new TList(TypeFromValue(l.Items[0])),
+        ScrapRecord r => new TRecord(r.Fields.ToImmutableDictionary(kv => kv.Key, kv => TypeFromValue(kv.Value))),
+        _ => Fresh()
+    };
 
     // ── List ──────────────────────────────────────────────────────────────────
 

@@ -24,7 +24,7 @@ public class ScrapInterpreter
     {
         var ast = Parse(source);
         if (typeCheck)
-            TypeInferrer.Check(ast, _typeEnv);
+            TypeInferrer.Check(ast, _typeEnv, _yard);
         return Evaluator.Eval(ast, _globalEnv, _yard);
     }
 
@@ -32,7 +32,7 @@ public class ScrapInterpreter
     public string TypeOf(string source)
     {
         var ast = Parse(source);
-        var inferrer = new TypeInferrer();
+        var inferrer = new TypeInferrer(_yard);
         var (type, subst) = inferrer.Infer(_typeEnv, ast);
         return type.Apply(subst).ToString()!;
     }

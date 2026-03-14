@@ -1,4 +1,6 @@
 using Scrapscript.Core;
+using Scrapscript.Core.Scrapyard;
+using Scrapscript.Core.Serialization;
 using Scrapscript.Core.TypeChecker;
 using Xunit;
 
@@ -484,5 +486,72 @@ public class TypeCheckerTests
             "describe (shape::circle 3.0)" +
             " ; describe : shape -> text = | #circle _ -> \"round\"" +
             " ; shape : #circle float #rect float float");
+    }
+
+    // ── Hash-ref type inference ───────────────────────────────────────────────
+
+    private static (LocalYard yard, ScrapInterpreter interp) MakeTempYard()
+    {
+        var yard = new LocalYard(Path.Combine(Path.GetTempPath(), "scrap-tc-" + Guid.NewGuid()));
+        yard.Init();
+        return (yard, new ScrapInterpreter(yard));
+    }
+
+    private static string PushAndHashRef(LocalYard yard, string src)
+    {
+        var interp = new ScrapInterpreter(yard);
+        var value = interp.Eval(src, typeCheck: false);
+        return "$" + yard.Push(FlatEncoder.Encode(value));
+    }
+
+    [Fact]
+    public void HashRefIntTypeInferred()
+    {
+        var (yard, interp) = MakeTempYard();
+        var hashRef = PushAndHashRef(yard, "42");
+        Assert.Equal("int", interp.TypeOf(hashRef));
+        interp.Eval($"{hashRef} + 1"); // should not throw
+    }
+
+    [Fact]
+    public void HashRefTextTypeInferred()
+    {
+        var (yard, interp) = MakeTempYard();
+        var hashRef = PushAndHashRef(yard, "\"hello\"");
+        interp.Eval($"{hashRef} ++ \" world\""); // should not throw
+    }
+
+    [Fact]
+    public void HashRefListTypeInferred()
+    {
+        var (yard, interp) = MakeTempYard();
+        var hashRef = PushAndHashRef(yard, "[1, 2, 3]");
+        interp.Eval($"list/length {hashRef}"); // should not throw
+    }
+
+    [Fact]
+    public void HashRefRecordTypeInferred()
+    {
+        var (yard, interp) = MakeTempYard();
+        var hashRef = PushAndHashRef(yard, "{ x = 1, y = 2 }");
+        // Use where-binding so the record access parses correctly
+        interp.Eval($"r.x + 1 ; r = {hashRef}"); // should not throw
+    }
+
+    [Fact]
+    public void HashRefWrongTypeRejected()
+    {
+        var (yard, interp) = MakeTempYard();
+        var hashRef = PushAndHashRef(yard, "\"text\"");
+        Assert.Throws<TypeCheckError>(() => interp.Eval($"{hashRef} + 1"));
+    }
+
+    [Fact]
+    public void HashRefNotFoundRemainsOpaque()
+    {
+        var (_, interp) = MakeTempYard();
+        // Fake hash — not in yard; type checker should treat as opaque (no TypeCheckError)
+        // We only run type checking, not eval, to avoid a runtime "not found" error.
+        interp.TypeOf("$sha1~~0000000000000000000000000000000000000000");
     }
 }
