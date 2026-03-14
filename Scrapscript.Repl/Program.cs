@@ -49,6 +49,17 @@ if (cliArgs.Length >= 1)
             Console.WriteLine(value.Display());
             return;
         }
+
+        case "eval" when cliArgs.Length >= 2:
+        {
+            var src = string.Join(" ", cliArgs.Skip(1));
+            var interpreter = new ScrapInterpreter(yard);
+            // Disable type checking: hash refs ($sha1~~...) are opaque to the type checker
+            var hasHashRef = src.Contains("$sha1~~");
+            var value = interpreter.Eval(src, typeCheck: !hasHashRef);
+            Console.WriteLine(value.Display());
+            return;
+        }
     }
 }
 
