@@ -2,9 +2,57 @@ using Scrapscript.Core;
 using Scrapscript.Core.Eval;
 using Scrapscript.Core.Lexer;
 using Scrapscript.Core.Parser;
+using Scrapscript.Core.Scrapyard;
+using Scrapscript.Core.Serialization;
 using Scrapscript.Core.TypeChecker;
 
-var interpreter = new ScrapInterpreter();
+var cliArgs = args; // top-level 'args' is the implicit program args
+
+if (cliArgs.Length >= 1)
+{
+    var yard = new LocalYard();
+
+    switch (cliArgs[0])
+    {
+        case "yard" when cliArgs.Length >= 2 && cliArgs[1] == "init":
+            yard.Init();
+            Console.WriteLine($"Initialized scrapyard at {yard.Root}");
+            return;
+
+        case "flat" when cliArgs.Length >= 2:
+        {
+            var src = string.Join(" ", cliArgs.Skip(1));
+            var interpreter = new ScrapInterpreter(yard);
+            var value = interpreter.Eval(src, typeCheck: false);
+            var flat = FlatEncoder.Encode(value);
+            Console.WriteLine(Convert.ToHexString(flat));
+            return;
+        }
+
+        case "push" when cliArgs.Length >= 2:
+        {
+            var src = string.Join(" ", cliArgs.Skip(1));
+            var interpreter = new ScrapInterpreter(yard);
+            var value = interpreter.Eval(src, typeCheck: false);
+            yard.Init();
+            var hashRef = yard.Push(FlatEncoder.Encode(value));
+            Console.WriteLine($"${hashRef}");
+            return;
+        }
+
+        case "pull" when cliArgs.Length >= 2:
+        {
+            var hashRef = cliArgs[1];
+            var flat = yard.Pull(hashRef);
+            if (flat is null) { Console.Error.WriteLine($"Not found: {hashRef}"); return; }
+            var value = FlatDecoder.Decode(flat);
+            Console.WriteLine(value.Display());
+            return;
+        }
+    }
+}
+
+var interpreter2 = new ScrapInterpreter();
 var sessionBindings = new List<string>(); // accumulated "name = expr" fragments
 
 Console.WriteLine("Scrapscript REPL  (Ctrl+C to exit)");
@@ -31,13 +79,13 @@ while (true)
             if (isBinding)
             {
                 // Validate the binding parses and type-checks, then persist it
-                interpreter.Eval(source);
+                interpreter2.Eval(source);
                 sessionBindings.Add(input);
                 Console.WriteLine($"defined: {bindingName}");
             }
             else
             {
-                var result = interpreter.Eval(source);
+                var result = interpreter2.Eval(source);
                 Console.WriteLine(result.Display());
             }
             break;

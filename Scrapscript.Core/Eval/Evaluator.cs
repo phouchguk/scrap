@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using Scrapscript.Core.Parser;
+using Scrapscript.Core.Scrapyard;
+using Scrapscript.Core.Serialization;
 
 namespace Scrapscript.Core.Eval;
 
@@ -9,7 +11,15 @@ public class ScrapMatchError(string message) : Exception(message);
 
 public class Evaluator
 {
-    public static ScrapValue Eval(Expr expr, ScrapEnv env)
+    private readonly LocalYard? _yard;
+
+    private Evaluator(LocalYard? yard) => _yard = yard;
+
+    // Public static entry points (preserve existing API)
+    public static ScrapValue Eval(Expr expr, ScrapEnv env, LocalYard? yard = null)
+        => new Evaluator(yard).EvalExpr(expr, env);
+
+    private ScrapValue EvalExpr(Expr expr, ScrapEnv env)
     {
         return expr switch
         {
@@ -20,7 +30,7 @@ public class Evaluator
             HoleLit => new ScrapHole(),
 
             Var v => env.Lookup(v.Name),
-            HashRef r => throw new ScrapNameError($"Hash references not supported: ${r.Ref}"),
+            HashRef r => EvalHashRef(r),
 
             ListExpr l => EvalList(l, env),
             RecordExpr r => EvalRecord(r, env),
@@ -33,7 +43,7 @@ public class Evaluator
 
             ApplyExpr a => EvalApply(a, env),
             BinOpExpr b => EvalBinOp(b, env),
-            NegExpr n => Eval(n.Operand, env) switch
+            NegExpr n => EvalExpr(n.Operand, env) switch
             {
                 ScrapInt i   => new ScrapInt(-i.Value),
                 ScrapFloat f => new ScrapFloat(-f.Value),
@@ -41,20 +51,28 @@ public class Evaluator
             },
 
             ConstructorExpr c => EvalConstructor(c, env),
-            TypeAnnotation ta => Eval(ta.Value, env),  // ignore type annotations at runtime
-            TypeDefExpr => new ScrapHole(),             // type definitions are no-ops at runtime
+            TypeAnnotation ta => EvalExpr(ta.Value, env),  // ignore type annotations at runtime
+            TypeDefExpr => new ScrapHole(),                 // type definitions are no-ops at runtime
 
             _ => throw new ScrapTypeError($"Cannot evaluate: {expr}")
         };
     }
 
-    private static ScrapValue EvalList(ListExpr l, ScrapEnv env)
+    private ScrapValue EvalHashRef(HashRef r)
     {
-        var items = l.Items.Select(item => Eval(item, env)).ToImmutableList();
+        if (_yard is null) throw new ScrapNameError($"No scrapyard configured");
+        var flat = _yard.Pull(r.Ref)
+            ?? throw new ScrapNameError($"Hash not found in yard: ${r.Ref}");
+        return FlatDecoder.Decode(flat);
+    }
+
+    private ScrapValue EvalList(ListExpr l, ScrapEnv env)
+    {
+        var items = l.Items.Select(item => EvalExpr(item, env)).ToImmutableList();
         return new ScrapList(items);
     }
 
-    private static ScrapValue EvalRecord(RecordExpr r, ScrapEnv env)
+    private ScrapValue EvalRecord(RecordExpr r, ScrapEnv env)
     {
         var fields = ImmutableDictionary<string, ScrapValue>.Empty;
 
@@ -68,16 +86,16 @@ public class Evaluator
 
         foreach (var (field, valExpr) in r.Fields)
         {
-            var val = Eval(valExpr, env);
+            var val = EvalExpr(valExpr, env);
             fields = fields.SetItem(field, val);
         }
 
         return new ScrapRecord(fields);
     }
 
-    private static ScrapValue EvalRecordAccess(RecordAccess ra, ScrapEnv env)
+    private ScrapValue EvalRecordAccess(RecordAccess ra, ScrapEnv env)
     {
-        var rec = Eval(ra.Record, env);
+        var rec = EvalExpr(ra.Record, env);
         if (rec is not ScrapRecord r)
             throw new ScrapTypeError($"Field access on non-record: {rec.Display()}");
         if (!r.Fields.TryGetValue(ra.Field, out var val))
@@ -85,7 +103,7 @@ public class Evaluator
         return val;
     }
 
-    private static ScrapValue EvalWhere(WhereExpr w, ScrapEnv env)
+    private ScrapValue EvalWhere(WhereExpr w, ScrapEnv env)
     {
         // Create a mutable child env for mutual recursion
         var childEnv = new ScrapEnv(env);
@@ -104,7 +122,7 @@ public class Evaluator
             {
                 try
                 {
-                    var val = Eval(binding.Value, childEnv);
+                    var val = EvalExpr(binding.Value, childEnv);
                     var bound = MatchPattern(binding.Pattern, val, childEnv);
                     if (bound == null)
                         throw new ScrapMatchError($"Pattern binding failed: {binding.Pattern}");
@@ -123,20 +141,20 @@ public class Evaluator
         if (remaining.Count > 0)
         {
             // Force error for the first unresolvable binding
-            Eval(remaining[0].Value, childEnv);
+            EvalExpr(remaining[0].Value, childEnv);
         }
 
-        return Eval(w.Body, childEnv);
+        return EvalExpr(w.Body, childEnv);
     }
 
-    private static ScrapValue EvalApply(ApplyExpr a, ScrapEnv env)
+    private ScrapValue EvalApply(ApplyExpr a, ScrapEnv env)
     {
-        var fn = Eval(a.Fn, env);
-        var arg = Eval(a.Arg, env);
+        var fn = EvalExpr(a.Fn, env);
+        var arg = EvalExpr(a.Arg, env);
         return ApplyFunction(fn, arg);
     }
 
-    public static ScrapValue ApplyFunction(ScrapValue fn, ScrapValue arg)
+    public ScrapValue ApplyFunction(ScrapValue fn, ScrapValue arg)
     {
         return fn switch
         {
@@ -156,17 +174,21 @@ public class Evaluator
         };
     }
 
-    private static ScrapValue ApplyLambda(ScrapFunction f, ScrapValue arg)
+    // Static wrapper used by builtins
+    public static ScrapValue ApplyFunction(ScrapValue fn, ScrapValue arg, LocalYard? yard = null)
+        => new Evaluator(yard).ApplyFunction(fn, arg);
+
+    private ScrapValue ApplyLambda(ScrapFunction f, ScrapValue arg)
     {
         var param = f.Params[0];
         var bound = MatchPattern(param, arg, f.Closure);
         if (bound == null)
             throw new ScrapMatchError($"Pattern match failed for argument: {arg.Display()}");
         var newEnv = f.Closure.ExtendMany(bound);
-        return Eval(f.Body, newEnv);
+        return EvalExpr(f.Body, newEnv);
     }
 
-    private static ScrapValue ApplyCaseFunction(ScrapCaseFunction cf, ScrapValue arg)
+    private ScrapValue ApplyCaseFunction(ScrapCaseFunction cf, ScrapValue arg)
     {
         foreach (var (pat, body) in cf.Arms)
         {
@@ -174,26 +196,25 @@ public class Evaluator
             if (bound != null)
             {
                 var newEnv = cf.Closure.ExtendMany(bound);
-                return Eval(body, newEnv);
+                return EvalExpr(body, newEnv);
             }
         }
         throw new ScrapMatchError($"No matching case for: {arg.Display()}");
     }
 
-    private static ScrapValue EvalBinOp(BinOpExpr b, ScrapEnv env)
+    private ScrapValue EvalBinOp(BinOpExpr b, ScrapEnv env)
     {
-        // Short-circuit for >+ (cons) to avoid evaluating right as head
+        // Short-circuit for >> (compose)
         if (b.Op == ">>")
         {
-            var f = Eval(b.Left, env);
-            var g = Eval(b.Right, env);
-            // Return a composed function
+            var f = EvalExpr(b.Left, env);
+            var g = EvalExpr(b.Right, env);
             return new ScrapBuiltin($"({b.Left}>>{b.Right})", arg =>
                 ApplyFunction(g, ApplyFunction(f, arg)));
         }
 
-        var left = Eval(b.Left, env);
-        var right = Eval(b.Right, env);
+        var left = EvalExpr(b.Left, env);
+        var right = EvalExpr(b.Right, env);
 
         return b.Op switch
         {
@@ -293,12 +314,8 @@ public class Evaluator
         // #tag or type::variant
         if (c.TypeExpr is Var v && v.Name == "__variant__")
         {
-            // This is a #tag expression used as a value
-            // Return a variant with no payload (or a function that takes payload)
             return new ScrapVariant(c.Variant, null);
         }
-        // type::variant — evaluate type, apply variant
-        // At runtime, we just create the variant; type checking is optional
         return new ScrapVariant(c.Variant, null);
     }
 

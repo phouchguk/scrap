@@ -2,6 +2,7 @@ using Scrapscript.Core.Builtins;
 using Scrapscript.Core.Eval;
 using Scrapscript.Core.Lexer;
 using Scrapscript.Core.Parser;
+using Scrapscript.Core.Scrapyard;
 using Scrapscript.Core.TypeChecker;
 
 namespace Scrapscript.Core;
@@ -10,11 +11,13 @@ public class ScrapInterpreter
 {
     private readonly ScrapEnv _globalEnv;
     private readonly TypeEnv _typeEnv;
+    private readonly LocalYard? _yard;
 
-    public ScrapInterpreter()
+    public ScrapInterpreter(LocalYard? yard = null)
     {
         _globalEnv = BuiltinEnv.Create();
         _typeEnv = BuiltinTypes.Create();
+        _yard = yard ?? new LocalYard();
     }
 
     public ScrapValue Eval(string source, bool typeCheck = true)
@@ -22,7 +25,7 @@ public class ScrapInterpreter
         var ast = Parse(source);
         if (typeCheck)
             TypeInferrer.Check(ast, _typeEnv);
-        return Evaluator.Eval(ast, _globalEnv);
+        return Evaluator.Eval(ast, _globalEnv, _yard);
     }
 
     // Type-check only, return the inferred type as a string
@@ -44,6 +47,7 @@ public class ScrapInterpreter
     {
         var tokens = new Lexer.Lexer(source).Tokenize();
         var ast = new Parser.Parser(tokens).ParseProgram();
-        return Evaluator.Eval(ast, env);
+        return Evaluator.Eval(ast, env, null);
     }
 }
+

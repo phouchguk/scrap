@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
 using Scrapscript.Core;
 using Scrapscript.Core.Eval;
+using Scrapscript.Core.Scrapyard;
+using Scrapscript.Core.Serialization;
 using Xunit;
 
 namespace Scrapscript.Tests;
@@ -455,5 +457,29 @@ public class EvalTests
         // bytes/to-utf8-text <| ~~aGVsbG8gd29ybGQ= +< ~21  -- "hello world!"
         var res = Eval("bytes/to-utf8-text <| ~~aGVsbG8gd29ybGQ= +< ~21");
         Assert.Equal(Text("hello world!"), res);
+    }
+
+    // ── Hash references & scrapyard ──────────────────────────────────────────
+
+    [Fact]
+    public void HashRefRoundTrip()
+    {
+        var yard = new LocalYard(Path.Combine(Path.GetTempPath(), "scrap-test-" + Guid.NewGuid()));
+        yard.Init();
+        var interpreter = new ScrapInterpreter(yard);
+        var hash = yard.Push(FlatEncoder.Encode(new ScrapInt(42)));
+        var result = interpreter.Eval($"${hash}", typeCheck: false);
+        Assert.Equal(new ScrapInt(42), result);
+    }
+
+    [Fact]
+    public void HashRefArithmetic()
+    {
+        var yard = new LocalYard(Path.Combine(Path.GetTempPath(), "scrap-test-" + Guid.NewGuid()));
+        yard.Init();
+        var interpreter = new ScrapInterpreter(yard);
+        var hash = yard.Push(FlatEncoder.Encode(new ScrapInt(42)));
+        var result = interpreter.Eval($"${hash} + 1", typeCheck: false);
+        Assert.Equal(new ScrapInt(43), result);
     }
 }
