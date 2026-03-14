@@ -168,16 +168,28 @@ public class TypeInferrer
             }
         }
 
-        // Second pass: assign fresh type variables to all value bindings (for mutual recursion)
-        var placeholders = new Dictionary<string, TVar>();
+        // Second pass: assign type placeholders to all value bindings (for mutual recursion).
+        // For annotated bindings, use the declared type as the placeholder so that recursive
+        // self-references see the precise annotated type during body inference rather than an
+        // unconstrained type variable. For non-annotated bindings, use a fresh type variable.
+        var placeholders = new Dictionary<string, ScrapType>();
         foreach (var binding in w.Bindings)
         {
             if (binding.Value is TypeDefExpr) continue;
             if (binding.Pattern is VarPat vp)
             {
-                var tv = Fresh();
-                placeholders[vp.Name] = tv;
-                childEnv.BindMono(vp.Name, tv);
+                ScrapType placeholder;
+                if (binding.Value is TypeAnnotation ta)
+                {
+                    var freeNames = CollectFreeTypeNames(ta.TypeDef, childEnv);
+                    placeholder = childEnv.ConvertTypeExpr(ta.TypeDef, freeNames);
+                }
+                else
+                {
+                    placeholder = Fresh();
+                }
+                placeholders[vp.Name] = placeholder;
+                childEnv.BindMono(vp.Name, placeholder);
             }
         }
 

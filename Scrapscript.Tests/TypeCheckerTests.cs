@@ -411,4 +411,78 @@ public class TypeCheckerTests
     {
         AssertOk("id 1 ; id : a -> a = x -> x");
     }
+
+    // ── Annotation-guided inference for recursive bindings ────────────────────
+
+    [Fact]
+    public void AnnotatedRecursiveFunctionOk()
+    {
+        // The annotation type is used as the placeholder during body inference,
+        // so the recursive self-reference sees int -> int immediately.
+        Assert.Equal("int",
+            TypeOf("factorial 5 ; factorial : int -> int = | 0 -> 1 | n -> n * factorial (n - 1)"));
+    }
+
+    [Fact]
+    public void RejectAnnotatedRecursiveWrongReturnType()
+    {
+        // Annotation says int -> text but every arm returns int.
+        AssertTypeError("f 1 ; f : int -> text = | 0 -> 1 | n -> f (n - 1) + 1");
+    }
+
+    [Fact]
+    public void RejectAnnotatedRecursiveWrongArgType()
+    {
+        // Annotation says text -> int but recursive call passes int.
+        AssertTypeError("f \"hi\" ; f : text -> int = | _ -> f 0");
+    }
+
+    [Fact]
+    public void AnnotatedMutualRecursionOk()
+    {
+        // Both bindings annotated; each self-reference sees the precise declared type.
+        AssertOk(
+            "even 4" +
+            " ; even : int -> bool = | 0 -> #true  | n -> odd  (n - 1)" +
+            " ; odd  : int -> bool = | 0 -> #false | n -> even (n - 1)");
+    }
+
+    [Fact]
+    public void AnnotatedRecursiveWithNamedTypeOk()
+    {
+        // Annotation introduces the named type; exhaustiveness checked correctly.
+        AssertOk(
+            "describe (flavour::vanilla)" +
+            " ; describe : flavour -> text = | #vanilla -> \"plain\" | #chocolate -> \"rich\"" +
+            " ; flavour : #vanilla #chocolate");
+    }
+
+    [Fact]
+    public void RejectAnnotatedRecursiveNonExhaustive()
+    {
+        // Annotation with named type; missing arm should be caught.
+        AssertTypeError(
+            "describe (flavour::vanilla)" +
+            " ; describe : flavour -> text = | #vanilla -> \"plain\"" +
+            " ; flavour : #vanilla #chocolate");
+    }
+
+    [Fact]
+    public void AnnotatedWithPayloadVariantOk()
+    {
+        // Multi-arg payload: #rect stores [w, h] as a ScrapList; _ matches the whole payload.
+        AssertOk(
+            "describe (shape::circle 3.0)" +
+            " ; describe : shape -> text = | #circle _ -> \"round\" | #rect _ -> \"square\"" +
+            " ; shape : #circle float #rect float float");
+    }
+
+    [Fact]
+    public void RejectAnnotatedPayloadVariantNonExhaustive()
+    {
+        AssertTypeError(
+            "describe (shape::circle 3.0)" +
+            " ; describe : shape -> text = | #circle _ -> \"round\"" +
+            " ; shape : #circle float #rect float float");
+    }
 }
