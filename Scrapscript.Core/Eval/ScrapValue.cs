@@ -108,3 +108,15 @@ public record ScrapBuiltinPartial(string Name, ScrapValue First, Func<ScrapValue
 {
     public override string Display() => $"<builtin-partial:{Name}>";
 }
+
+public class ScrapValueComparer : IComparer<ScrapValue>
+{
+    public static readonly ScrapValueComparer Instance = new();
+    public int Compare(ScrapValue? x, ScrapValue? y) => (x, y) switch
+    {
+        (ScrapInt a,   ScrapInt b)   => a.Value.CompareTo(b.Value),
+        (ScrapFloat a, ScrapFloat b) => a.Value.CompareTo(b.Value),
+        (ScrapText a,  ScrapText b)  => string.Compare(a.Value, b.Value, StringComparison.Ordinal),
+        _ => throw new ScrapTypeError($"list/sort: cannot compare {x?.Display()} and {y?.Display()}")
+    };
+}

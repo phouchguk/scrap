@@ -321,6 +321,8 @@ public class Parser(List<Token> tokens)
             TokenType.Identifier or TokenType.HashTag or TokenType.HashRef or
             TokenType.Wildcard or TokenType.LParen or TokenType.LBracket or
             TokenType.LBrace or TokenType.TildeTilde or TokenType.Tilde => true,
+            TokenType.Minus when Peek().Type is TokenType.Int or TokenType.Float
+                && Current.Col + 1 == Peek().Col => true,
             _ => false
         };
     }

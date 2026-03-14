@@ -72,6 +72,23 @@ public static class BuiltinTypes
         env.Bind("dict/get",
             Scheme(["b"], Func(TText.Instance, new TVar("__dict__"), new TName("maybe", ImmutableList.Create<ScrapType>(b)))));
 
+        // int/float math
+        var numVar = new TVar("n");
+        env.Bind("abs", Scheme(["n"], new TFunc(numVar, numVar)));
+        env.Bind("min", Scheme(["n"], Func(numVar, numVar, numVar)));
+        env.Bind("max", Scheme(["n"], Func(numVar, numVar, numVar)));
+
+        // list module (continued)
+        env.Bind("list/reverse", Scheme(["a"], new TFunc(listA, listA)));
+        env.Bind("list/sort",    Scheme(["a"], new TFunc(listA, listA)));
+        env.Bind("list/zip",     Scheme(["a", "b"], Func(listA, listB2, new TList(new TList(new TVar("a"))))));
+
+        // text module (continued)
+        env.Bind("text/trim",     Scheme([], new TFunc(TText.Instance, TText.Instance)));
+        env.Bind("text/split",    Scheme([], Func(TText.Instance, TText.Instance, new TList(TText.Instance))));
+        env.Bind("text/to-upper", Scheme([], new TFunc(TText.Instance, TText.Instance)));
+        env.Bind("text/to-lower", Scheme([], new TFunc(TText.Instance, TText.Instance)));
+
         // Boolean values
         var boolType = new TName("bool");
         env.Bind("true",  Scheme([], boolType));

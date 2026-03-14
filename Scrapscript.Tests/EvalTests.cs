@@ -296,6 +296,28 @@ public class EvalTests
 
     // ── Built-ins ─────────────────────────────────────────────────────────────
 
+    [Fact] public void AbsInt()      => Assert.Equal(Int(5),    Eval("abs -5"));
+    [Fact] public void AbsFloat()    => Assert.Equal(Float(1.5), Eval("abs -1.5"));
+    [Fact] public void MinInts()     => Assert.Equal(Int(2),    Eval("min 3 2"));
+    [Fact] public void MaxInts()     => Assert.Equal(Int(5),    Eval("max 3 5"));
+    [Fact] public void ListReverse() => Assert.Equal(
+        new ScrapList(ImmutableList.Create<ScrapValue>(Int(3), Int(2), Int(1))),
+        Eval("list/reverse [1, 2, 3]"));
+    [Fact] public void ListSort()    => Assert.Equal(
+        new ScrapList(ImmutableList.Create<ScrapValue>(Int(1), Int(2), Int(3))),
+        Eval("list/sort [3, 1, 2]"));
+    [Fact] public void ListZip()     => Assert.Equal(
+        new ScrapList(ImmutableList.Create<ScrapValue>(
+            new ScrapList(ImmutableList.Create<ScrapValue>(Int(1), Text("a"))),
+            new ScrapList(ImmutableList.Create<ScrapValue>(Int(2), Text("b"))))),
+        Eval("list/zip [1, 2] [\"a\", \"b\"]"));
+    [Fact] public void TextTrim()    => Assert.Equal(Text("hi"), Eval("text/trim \"  hi  \""));
+    [Fact] public void TextSplit()   => Assert.Equal(
+        new ScrapList(ImmutableList.Create<ScrapValue>(Text("a"), Text("b"), Text("c"))),
+        Eval("text/split \",\" \"a,b,c\""));
+    [Fact] public void TextToUpper() => Assert.Equal(Text("HELLO"), Eval("text/to-upper \"hello\""));
+    [Fact] public void TextToLower() => Assert.Equal(Text("hello"), Eval("text/to-lower \"HELLO\""));
+
     [Fact] public void ToFloat() => Assert.Equal(Float(3.0), Eval("to-float 3"));
     [Fact] public void Round() => Assert.Equal(Int(4), Eval("round 3.5"));
     [Fact] public void Ceil() => Assert.Equal(Int(4), Eval("ceil 3.1"));
@@ -368,6 +390,20 @@ public class EvalTests
     [Fact]
     public void FactorialWithAnnotation() =>
         Assert.Equal(Int(120), Eval("factorial 5 ; factorial : int -> int = | 0 -> 1 | n -> n * factorial (n - 1)"));
+
+    [Fact]
+    public void MutualRecursionEvenOdd()
+    {
+        var src = "list/map even [0, 1, 2, 3, 4, 5]" +
+                  " ; even = | 0 -> #true  | n -> odd  (n - 1)" +
+                  " ; odd  = | 0 -> #false | n -> even (n - 1)";
+        Assert.Equal(
+            new ScrapList(ImmutableList.Create<ScrapValue>(
+                new ScrapVariant("true",  null), new ScrapVariant("false", null),
+                new ScrapVariant("true",  null), new ScrapVariant("false", null),
+                new ScrapVariant("true",  null), new ScrapVariant("false", null))),
+            Eval(src));
+    }
 
     [Fact]
     public void FactorialViaMap() =>

@@ -129,6 +129,80 @@ public static class BuiltinEnv
             _ => throw new ScrapTypeError("dict/get: expected text key and record")
         }));
 
+        // int/float math
+        env.Set("abs", new ScrapBuiltin("abs", v => v switch
+        {
+            ScrapInt i   => new ScrapInt(Math.Abs(i.Value)),
+            ScrapFloat f => new ScrapFloat(Math.Abs(f.Value)),
+            _ => throw new ScrapTypeError($"abs: expected int or float, got {v.Display()}")
+        }));
+
+        env.Set("min", new ScrapBuiltin2("min", (a, b) => (a, b) switch
+        {
+            (ScrapInt x,   ScrapInt y)   => x.Value <= y.Value ? x : y,
+            (ScrapFloat x, ScrapFloat y) => x.Value <= y.Value ? x : y,
+            _ => throw new ScrapTypeError($"min: expected two ints or two floats")
+        }));
+
+        env.Set("max", new ScrapBuiltin2("max", (a, b) => (a, b) switch
+        {
+            (ScrapInt x,   ScrapInt y)   => x.Value >= y.Value ? x : y,
+            (ScrapFloat x, ScrapFloat y) => x.Value >= y.Value ? x : y,
+            _ => throw new ScrapTypeError($"max: expected two ints or two floats")
+        }));
+
+        // list module (continued)
+        env.Set("list/reverse", new ScrapBuiltin("list/reverse", v => v switch
+        {
+            ScrapList l => new ScrapList(l.Items.Reverse().ToImmutableList()),
+            _ => throw new ScrapTypeError($"list/reverse: expected list")
+        }));
+
+        env.Set("list/sort", new ScrapBuiltin("list/sort", v => v switch
+        {
+            ScrapList l => new ScrapList(l.Items
+                .OrderBy(x => x, ScrapValueComparer.Instance)
+                .ToImmutableList()),
+            _ => throw new ScrapTypeError($"list/sort: expected list")
+        }));
+
+        env.Set("list/zip", new ScrapBuiltin2("list/zip", (a, b) => (a, b) switch
+        {
+            (ScrapList la, ScrapList lb) => new ScrapList(
+                la.Items.Zip(lb.Items, (x, y) =>
+                    (ScrapValue)new ScrapList(ImmutableList.Create(x, y)))
+                .ToImmutableList()),
+            _ => throw new ScrapTypeError($"list/zip: expected two lists")
+        }));
+
+        // text module (continued)
+        env.Set("text/trim", new ScrapBuiltin("text/trim", v => v switch
+        {
+            ScrapText t => new ScrapText(t.Value.Trim()),
+            _ => throw new ScrapTypeError($"text/trim: expected text")
+        }));
+
+        env.Set("text/split", new ScrapBuiltin2("text/split", (sep, str) => (sep, str) switch
+        {
+            (ScrapText s, ScrapText t) => new ScrapList(
+                t.Value.Split(s.Value)
+                 .Select(part => (ScrapValue)new ScrapText(part))
+                 .ToImmutableList()),
+            _ => throw new ScrapTypeError($"text/split: expected two text values")
+        }));
+
+        env.Set("text/to-upper", new ScrapBuiltin("text/to-upper", v => v switch
+        {
+            ScrapText t => new ScrapText(t.Value.ToUpper()),
+            _ => throw new ScrapTypeError($"text/to-upper: expected text")
+        }));
+
+        env.Set("text/to-lower", new ScrapBuiltin("text/to-lower", v => v switch
+        {
+            ScrapText t => new ScrapText(t.Value.ToLower()),
+            _ => throw new ScrapTypeError($"text/to-lower: expected text")
+        }));
+
         // Boolean conveniences (#true and #false as values)
         env.Set("true", new ScrapVariant("true", null));
         env.Set("false", new ScrapVariant("false", null));
