@@ -359,6 +359,13 @@ public class Parser(List<Token> tokens)
                 return new ConstructorExpr(new Var("__variant__"), tok.Text);
             case TokenType.Identifier:
                 Consume();
+                // name@version → MapRef
+                if (Check(TokenType.At) && Peek().Type == TokenType.Int)
+                {
+                    Consume(); // @
+                    var versionTok = Consume(); // Int
+                    return new MapRef(tok.Text, int.Parse(versionTok.Text));
+                }
                 return new Var(tok.Text);
             case TokenType.Wildcard:
                 Consume();

@@ -52,10 +52,51 @@ if (cliArgs.Length >= 1)
 
         case "eval" when cliArgs.Length >= 2:
         {
-            var src = string.Join(" ", cliArgs.Skip(1));
-            var interpreter = new ScrapInterpreter(yard);
-            var value = interpreter.Eval(src);
+            var evalArgs = cliArgs.Skip(1).ToArray();
+            DateTimeOffset? asOf = null;
+            if (evalArgs.Length > 0 && evalArgs[0].StartsWith("--t="))
+            {
+                asOf = DateTimeOffset.Parse(evalArgs[0]["--t=".Length..]);
+                evalArgs = evalArgs.Skip(1).ToArray();
+            }
+            var src = string.Join(" ", evalArgs);
+            var map = new LocalMap();
+            var interpreter = new ScrapInterpreter(yard, map);
+            var value = interpreter.Eval(src, typeCheck: false, asOf: asOf);
             Console.WriteLine(value.Display());
+            return;
+        }
+
+        case "map" when cliArgs.Length >= 2 && cliArgs[1] == "init":
+        {
+            var map = new LocalMap();
+            map.Init();
+            Console.WriteLine($"Initialized map at {map.Root}");
+            return;
+        }
+
+        case "map" when cliArgs.Length >= 4 && cliArgs[1] == "commit":
+        {
+            var name = cliArgs[2];
+            var src = string.Join(" ", cliArgs.Skip(3));
+            var map = new LocalMap();
+            var interpreter = new ScrapInterpreter(yard, map);
+            var value = interpreter.Eval(src, typeCheck: false);
+            yard.Init();
+            var hashRef = yard.Push(FlatEncoder.Encode(value));
+            map.Init();
+            var label = map.Commit(name, hashRef);
+            Console.WriteLine(label);
+            return;
+        }
+
+        case "map" when cliArgs.Length >= 3 && cliArgs[1] == "history":
+        {
+            var name = cliArgs[2];
+            var map = new LocalMap();
+            var history = map.History(name);
+            foreach (var entry in history)
+                Console.WriteLine($"{name}@{entry.Version}  {entry.Timestamp:yyyy-MM-ddTHH:mm:ssZ}  ${entry.HashRef}");
             return;
         }
     }

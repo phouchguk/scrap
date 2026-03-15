@@ -12,20 +12,22 @@ public class ScrapInterpreter
     private readonly ScrapEnv _globalEnv;
     private readonly TypeEnv _typeEnv;
     private readonly LocalYard? _yard;
+    private readonly LocalMap? _map;
 
-    public ScrapInterpreter(LocalYard? yard = null)
+    public ScrapInterpreter(LocalYard? yard = null, LocalMap? map = null)
     {
         _globalEnv = BuiltinEnv.Create();
         _typeEnv = BuiltinTypes.Create();
         _yard = yard ?? new LocalYard();
+        _map = map;
     }
 
-    public ScrapValue Eval(string source, bool typeCheck = true)
+    public ScrapValue Eval(string source, bool typeCheck = true, DateTimeOffset? asOf = null)
     {
         var ast = Parse(source);
         if (typeCheck)
             TypeInferrer.Check(ast, _typeEnv, _yard);
-        return Evaluator.Eval(ast, _globalEnv, _yard);
+        return Evaluator.Eval(ast, _globalEnv, _yard, _map, asOf);
     }
 
     // Type-check only, return the inferred type as a string

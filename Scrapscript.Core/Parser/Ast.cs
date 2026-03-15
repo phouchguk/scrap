@@ -20,6 +20,7 @@ public record HoleLit : Expr;
 // Identifiers / references
 public record Var(string Name) : Expr;
 public record HashRef(string Ref) : Expr;   // $sha1~~...
+public record MapRef(string Name, int Version) : Expr;  // name@version
 
 // Constructor: type::variant  (e.g. scoop::chocolate, #true)
 public record ConstructorExpr(Expr TypeExpr, string Variant) : Expr;

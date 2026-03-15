@@ -12,12 +12,20 @@ public class ScrapMatchError(string message) : Exception(message);
 public class Evaluator
 {
     private readonly LocalYard? _yard;
+    private readonly LocalMap? _map;
+    private readonly DateTimeOffset? _asOf;
 
-    private Evaluator(LocalYard? yard) => _yard = yard;
+    private Evaluator(LocalYard? yard, LocalMap? map = null, DateTimeOffset? asOf = null)
+    {
+        _yard = yard;
+        _map = map;
+        _asOf = asOf;
+    }
 
     // Public static entry points (preserve existing API)
-    public static ScrapValue Eval(Expr expr, ScrapEnv env, LocalYard? yard = null)
-        => new Evaluator(yard).EvalExpr(expr, env);
+    public static ScrapValue Eval(Expr expr, ScrapEnv env, LocalYard? yard = null,
+        LocalMap? map = null, DateTimeOffset? asOf = null)
+        => new Evaluator(yard, map, asOf).EvalExpr(expr, env);
 
     private ScrapValue EvalExpr(Expr expr, ScrapEnv env)
     {
@@ -29,8 +37,9 @@ public class Evaluator
             BytesLit b => new ScrapBytes(b.Value),
             HoleLit => new ScrapHole(),
 
-            Var v => env.Lookup(v.Name),
+            Var v => EvalVar(v, env),
             HashRef r => EvalHashRef(r),
+            MapRef mr => EvalMapRef(mr),
 
             ListExpr l => EvalList(l, env),
             RecordExpr r => EvalRecord(r, env),
@@ -58,11 +67,40 @@ public class Evaluator
         };
     }
 
+    private ScrapValue EvalVar(Var v, ScrapEnv env)
+    {
+        if (env.TryLookup(v.Name, out var value))
+            return value!;
+        if (_map != null)
+        {
+            var hashRef = _map.Resolve(v.Name, asOf: _asOf);
+            if (hashRef != null)
+                return PullFromYard(hashRef);
+        }
+        throw new ScrapNameError($"Unbound variable: {v.Name}");
+    }
+
+    private ScrapValue EvalMapRef(MapRef r)
+    {
+        if (_map is null) throw new ScrapNameError($"No map configured");
+        var hashRef = _map.Resolve(r.Name, version: r.Version)
+            ?? throw new ScrapNameError($"Map entry not found: {r.Name}@{r.Version}");
+        return PullFromYard(hashRef);
+    }
+
     private ScrapValue EvalHashRef(HashRef r)
     {
         if (_yard is null) throw new ScrapNameError($"No scrapyard configured");
         var flat = _yard.Pull(r.Ref)
             ?? throw new ScrapNameError($"Hash not found in yard: ${r.Ref}");
+        return FlatDecoder.Decode(flat);
+    }
+
+    private ScrapValue PullFromYard(string hashRef)
+    {
+        if (_yard is null) throw new ScrapNameError($"No scrapyard configured");
+        var flat = _yard.Pull(hashRef)
+            ?? throw new ScrapNameError($"Hash not found in yard: ${hashRef}");
         return FlatDecoder.Decode(flat);
     }
 
