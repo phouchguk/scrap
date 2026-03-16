@@ -28,6 +28,7 @@ public enum TokenType
     GtGt,        // >>
     PipeGt,      // |>
     LtPipe,      // <|
+    LtMinus,     // <-
     Arrow,       // ->
     FatArrow,    // =>
     ColonColon,  // ::
