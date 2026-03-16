@@ -34,6 +34,45 @@ public class PlatformTests
     }
 
     [Fact]
+    public void HttpPlatform_OkVariant_Returns200()
+    {
+        var interp = new ScrapInterpreter();
+        var fn = interp.Eval("""_ -> #ok "Hello" """, typeCheck: false);
+        var (status, body) = HttpPlatform.Dispatch(interp, fn, "/");
+        Assert.Equal(200, status);
+        Assert.Equal("Hello", body);
+    }
+
+    [Fact]
+    public void HttpPlatform_NotfoundVariant_Returns404()
+    {
+        var interp = new ScrapInterpreter();
+        var fn = interp.Eval("""_ -> #notfound "gone" """, typeCheck: false);
+        var (status, body) = HttpPlatform.Dispatch(interp, fn, "/missing");
+        Assert.Equal(404, status);
+        Assert.Equal("gone", body);
+    }
+
+    [Fact]
+    public void HttpPlatform_CaseFunctionRoutes()
+    {
+        var interp = new ScrapInterpreter();
+        var fn = interp.Eval("""| "/" -> #ok "home" | _ -> #notfound "nope" """, typeCheck: false);
+        var (s1, b1) = HttpPlatform.Dispatch(interp, fn, "/");
+        var (s2, b2) = HttpPlatform.Dispatch(interp, fn, "/other");
+        Assert.Equal((200, "home"), (s1, b1));
+        Assert.Equal((404, "nope"), (s2, b2));
+    }
+
+    [Fact]
+    public void HttpPlatform_BadResponse_ThrowsScrapTypeError()
+    {
+        var interp = new ScrapInterpreter();
+        var fn = interp.Eval("_ -> 42", typeCheck: false);
+        Assert.Throws<ScrapTypeError>(() => HttpPlatform.Dispatch(interp, fn, "/"));
+    }
+
+    [Fact]
     public void ScrapInterpreter_Apply_WorksForLambda()
     {
         var interpreter = new ScrapInterpreter();

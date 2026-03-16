@@ -114,6 +114,7 @@ if (cliArgs.Length >= 1)
             IPlatform platform = platformName switch
             {
                 "console" => new ConsolePlatform(),
+                "http"    => new HttpPlatform(),
                 _ => throw new Exception($"Unknown platform: {platformName}")
             };
             platform.Run(new ScrapInterpreter(yard), source);
