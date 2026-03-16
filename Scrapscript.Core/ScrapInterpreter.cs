@@ -39,6 +39,9 @@ public class ScrapInterpreter
         return type.Apply(subst).ToString()!;
     }
 
+    public ScrapValue Apply(ScrapValue fn, ScrapValue arg)
+        => Evaluator.ApplyFunction(fn, arg, _yard);
+
     private static Expr Parse(string source)
     {
         var tokens = new Lexer.Lexer(source).Tokenize();

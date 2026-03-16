@@ -1,5 +1,6 @@
 using Scrapscript.Core;
 using Scrapscript.Core.Eval;
+using Scrapscript.Core.Platforms;
 using Scrapscript.Core.Lexer;
 using Scrapscript.Core.Parser;
 using Scrapscript.Core.Scrapyard;
@@ -97,6 +98,25 @@ if (cliArgs.Length >= 1)
             var history = map.History(name);
             foreach (var entry in history)
                 Console.WriteLine($"{name}@{entry.Version}  {entry.Timestamp:yyyy-MM-ddTHH:mm:ssZ}  ${entry.HashRef}");
+            return;
+        }
+
+        case "run" when cliArgs.Length >= 2:
+        {
+            var runArgs = cliArgs.Skip(1).ToArray();
+            var platformName = "console";
+            if (runArgs[0].StartsWith("--platform="))
+            {
+                platformName = runArgs[0]["--platform=".Length..];
+                runArgs = runArgs.Skip(1).ToArray();
+            }
+            var source = File.ReadAllText(runArgs[0]);
+            IPlatform platform = platformName switch
+            {
+                "console" => new ConsolePlatform(),
+                _ => throw new Exception($"Unknown platform: {platformName}")
+            };
+            platform.Run(new ScrapInterpreter(yard), source);
             return;
         }
     }
