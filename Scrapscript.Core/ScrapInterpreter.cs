@@ -1,4 +1,5 @@
 using Scrapscript.Core.Builtins;
+using Scrapscript.Core.Compiler;
 using Scrapscript.Core.Eval;
 using Scrapscript.Core.Lexer;
 using Scrapscript.Core.Parser;
@@ -37,6 +38,14 @@ public class ScrapInterpreter
         var inferrer = new TypeInferrer(_yard);
         var (type, subst) = inferrer.Infer(_typeEnv, ast);
         return type.Apply(subst).ToString()!;
+    }
+
+    // Compile source to a JS expression string. Pass includeRuntime=true to prepend the runtime.
+    public string CompileToJs(string source, bool includeRuntime = true)
+    {
+        var ast = Parse(source);
+        var expr = new JsCompiler().Compile(ast);
+        return includeRuntime ? JsCompiler.Runtime + expr : expr;
     }
 
     public ScrapValue Apply(ScrapValue fn, ScrapValue arg)
