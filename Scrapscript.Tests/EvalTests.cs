@@ -528,4 +528,66 @@ public class EvalTests
         var result = Eval($"""do x <- #ok "done", x ++ "!" ; {BindDef}""", typeCheck: false);
         Assert.Equal(new ScrapVariant("ok", Text("done")), result);
     }
+
+    // ── int/to-text, float/to-text ────────────────────────────────────────────
+
+    [Fact] public void IntToText()        => Assert.Equal(Text("42"),  Eval("int/to-text 42"));
+    [Fact] public void IntToTextNeg()     => Assert.Equal(Text("-7"),  Eval("int/to-text -7"));
+    [Fact] public void FloatToText()      => Assert.Equal(Text("3.14"), Eval("float/to-text 3.14"));
+    [Fact] public void FloatToTextWhole() => Assert.Equal(Text("2.0"),  Eval("float/to-text 2.0"));
+
+    // ── text/to-int ───────────────────────────────────────────────────────────
+
+    [Fact] public void TextToInt()        => Assert.Equal(Int(42),  Eval("text/to-int \"42\""));
+    [Fact] public void TextToIntNeg()     => Assert.Equal(Int(-7),  Eval("text/to-int \"-7\""));
+    [Fact] public void TextToIntInvalid() => Assert.ThrowsAny<Exception>(() => Eval("text/to-int \"abc\""));
+
+    // ── text/to-float ─────────────────────────────────────────────────────────
+
+    [Fact] public void TextToFloat()        => Assert.Equal(Float(3.14),  Eval("text/to-float \"3.14\""));
+    [Fact] public void TextToFloatInt()     => Assert.Equal(Float(42.0),  Eval("text/to-float \"42\""));
+    [Fact] public void TextToFloatInvalid() => Assert.ThrowsAny<Exception>(() => Eval("text/to-float \"abc\""));
+
+    // ── text/slice ────────────────────────────────────────────────────────────
+
+    [Fact] public void TextSliceMiddle()    => Assert.Equal(Text("ell"), Eval("text/slice 1 4 \"hello\""));
+    [Fact] public void TextSliceStart()     => Assert.Equal(Text("he"),  Eval("text/slice 0 2 \"hello\""));
+    [Fact] public void TextSliceClampHigh() => Assert.Equal(Text("lo"),  Eval("text/slice 3 99 \"hello\""));
+    [Fact] public void TextSliceEmpty()     => Assert.Equal(Text(""),    Eval("text/slice 2 2 \"hello\""));
+
+    // ── text/at ───────────────────────────────────────────────────────────────
+
+    [Fact] public void TextAtFirst()    => Assert.Equal(new ScrapVariant("just", Text("h")),  Eval("text/at 0 \"hello\""));
+    [Fact] public void TextAtLast()     => Assert.Equal(new ScrapVariant("just", Text("o")),  Eval("text/at 4 \"hello\""));
+    [Fact] public void TextAtOob()      => Assert.Equal(new ScrapVariant("nothing", null),    Eval("text/at 10 \"hello\"", typeCheck: false));
+
+    // ── text/chars ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void TextChars()
+    {
+        var result = Eval("text/chars \"hi\"");
+        var list = Assert.IsType<ScrapList>(result);
+        Assert.Equal(new[] { "h", "i" }, list.Items.Select(v => ((ScrapText)v).Value));
+    }
+
+    // ── text/contains, text/starts-with ──────────────────────────────────────
+
+    [Fact] public void TextContainsTrue()        => Assert.Equal(new ScrapVariant("true",  null), Eval("text/contains \"ell\" \"hello\""));
+    [Fact] public void TextContainsFalse()       => Assert.Equal(new ScrapVariant("false", null), Eval("text/contains \"xyz\" \"hello\""));
+    [Fact] public void TextStartsWithTrue()      => Assert.Equal(new ScrapVariant("true",  null), Eval("text/starts-with \"he\" \"hello\""));
+    [Fact] public void TextStartsWithFalse()     => Assert.Equal(new ScrapVariant("false", null), Eval("text/starts-with \"lo\" \"hello\""));
+
+    // ── list/range ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ListRange()
+    {
+        var result = Eval("list/range 0 4");
+        var list = Assert.IsType<ScrapList>(result);
+        Assert.Equal(new long[] { 0, 1, 2, 3 }, list.Items.Select(v => ((ScrapInt)v).Value));
+    }
+
+    [Fact] public void ListRangeEmpty()  => Assert.Equal(new ScrapList(System.Collections.Immutable.ImmutableList<ScrapValue>.Empty), Eval("list/range 3 3"));
+    [Fact] public void ListRangeOffset() => Assert.Equal(new ScrapList(System.Collections.Immutable.ImmutableList.Create<ScrapValue>(Int(5), Int(6), Int(7))), Eval("list/range 5 8"));
 }

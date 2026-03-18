@@ -51,6 +51,21 @@ if (cliArgs.Length >= 1)
             return;
         }
 
+        case "js" when cliArgs.Length == 2 && cliArgs[1] == "--runtime":
+            Console.WriteLine(Scrapscript.Core.Compiler.JsCompiler.Runtime);
+            return;
+
+        case "js" when cliArgs.Length >= 2:
+        {
+            var jsArgs = cliArgs.Skip(1).ToArray();
+            var includeRuntime = true;
+            if (jsArgs[0] == "--no-runtime") { includeRuntime = false; jsArgs = jsArgs.Skip(1).ToArray(); }
+            var src = string.Join(" ", jsArgs);
+            var interpreter = new ScrapInterpreter(yard);
+            Console.WriteLine(interpreter.CompileToJs(src, includeRuntime));
+            return;
+        }
+
         case "eval" when cliArgs.Length >= 2:
         {
             var evalArgs = cliArgs.Skip(1).ToArray();

@@ -203,6 +203,81 @@ public static class BuiltinEnv
             _ => throw new ScrapTypeError($"text/to-lower: expected text")
         }));
 
+        // int/float to text
+        env.Set("int/to-text", new ScrapBuiltin("int/to-text", v => v switch
+        {
+            ScrapInt i => new ScrapText(i.Value.ToString()),
+            _ => throw new ScrapTypeError($"int/to-text: expected int, got {v.Display()}")
+        }));
+
+        env.Set("float/to-text", new ScrapBuiltin("float/to-text", v => v switch
+        {
+            ScrapFloat f => new ScrapText(f.Display()),
+            _ => throw new ScrapTypeError($"float/to-text: expected float, got {v.Display()}")
+        }));
+
+        env.Set("text/to-int", new ScrapBuiltin("text/to-int", v => v switch
+        {
+            ScrapText t when long.TryParse(t.Value, out var n) => new ScrapInt(n),
+            ScrapText t => throw new ScrapTypeError($"text/to-int: not a valid integer: \"{t.Value}\""),
+            _ => throw new ScrapTypeError($"text/to-int: expected text, got {v.Display()}")
+        }));
+
+        env.Set("text/to-float", new ScrapBuiltin("text/to-float", v => v switch
+        {
+            ScrapText t when double.TryParse(t.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) => new ScrapFloat(d),
+            ScrapText t => throw new ScrapTypeError($"text/to-float: not a valid float: \"{t.Value}\""),
+            _ => throw new ScrapTypeError($"text/to-float: expected text, got {v.Display()}")
+        }));
+
+        // text module (continued)
+        env.Set("text/slice", new ScrapBuiltin("text/slice", startVal =>
+            new ScrapBuiltin("text/slice(start)", endVal =>
+                new ScrapBuiltin("text/slice(start,end)", strVal => (startVal, endVal, strVal) switch
+                {
+                    (ScrapInt start, ScrapInt end, ScrapText t) =>
+                        new ScrapText(t.Value.Substring(
+                            (int)Math.Max(0, Math.Min(start.Value, t.Value.Length)),
+                            (int)Math.Max(0, Math.Min(end.Value, t.Value.Length) - Math.Max(0, Math.Min(start.Value, t.Value.Length))))),
+                    _ => throw new ScrapTypeError("text/slice: expected int int text")
+                }))));
+
+        env.Set("text/at", new ScrapBuiltin2("text/at", (idxVal, strVal) => (idxVal, strVal) switch
+        {
+            (ScrapInt idx, ScrapText t) when idx.Value >= 0 && idx.Value < t.Value.Length =>
+                new ScrapVariant("just", new ScrapText(t.Value[(int)idx.Value].ToString())),
+            (ScrapInt, ScrapText) => new ScrapVariant("nothing", null),
+            _ => throw new ScrapTypeError("text/at: expected int and text")
+        }));
+
+        env.Set("text/chars", new ScrapBuiltin("text/chars", v => v switch
+        {
+            ScrapText t => new ScrapList(t.Value.Select(c => (ScrapValue)new ScrapText(c.ToString())).ToImmutableList()),
+            _ => throw new ScrapTypeError("text/chars: expected text")
+        }));
+
+        env.Set("text/contains", new ScrapBuiltin2("text/contains", (needle, haystack) => (needle, haystack) switch
+        {
+            (ScrapText n, ScrapText h) => new ScrapVariant(h.Value.Contains(n.Value) ? "true" : "false", null),
+            _ => throw new ScrapTypeError("text/contains: expected two text values")
+        }));
+
+        env.Set("text/starts-with", new ScrapBuiltin2("text/starts-with", (prefix, text) => (prefix, text) switch
+        {
+            (ScrapText p, ScrapText t) => new ScrapVariant(t.Value.StartsWith(p.Value) ? "true" : "false", null),
+            _ => throw new ScrapTypeError("text/starts-with: expected two text values")
+        }));
+
+        // list module (continued)
+        env.Set("list/range", new ScrapBuiltin2("list/range", (startVal, endVal) => (startVal, endVal) switch
+        {
+            (ScrapInt start, ScrapInt end) =>
+                new ScrapList(Enumerable.Range((int)start.Value, (int)Math.Max(0, end.Value - start.Value))
+                    .Select(i => (ScrapValue)new ScrapInt(i))
+                    .ToImmutableList()),
+            _ => throw new ScrapTypeError("list/range: expected two ints")
+        }));
+
         // Boolean conveniences (#true and #false as values)
         env.Set("true", new ScrapVariant("true", null));
         env.Set("false", new ScrapVariant("false", null));

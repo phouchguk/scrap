@@ -89,6 +89,22 @@ public static class BuiltinTypes
         env.Bind("text/to-upper", Scheme([], new TFunc(TText.Instance, TText.Instance)));
         env.Bind("text/to-lower", Scheme([], new TFunc(TText.Instance, TText.Instance)));
 
+        // int/float to text
+        env.Bind("int/to-text",   Scheme([], new TFunc(TInt.Instance,   TText.Instance)));
+        env.Bind("float/to-text", Scheme([], new TFunc(TFloat.Instance, TText.Instance)));
+        env.Bind("text/to-int",   Scheme([], new TFunc(TText.Instance,  TInt.Instance)));
+        env.Bind("text/to-float", Scheme([], new TFunc(TText.Instance,  TFloat.Instance)));
+
+        // text module (continued)
+        env.Bind("text/slice",      Scheme([], Func(TInt.Instance, TInt.Instance, TText.Instance, TText.Instance)));
+        env.Bind("text/at",         Scheme([], Func(TInt.Instance, TText.Instance, new TName("maybe", ImmutableList.Create<ScrapType>(TText.Instance)))));
+        env.Bind("text/chars",      Scheme([], new TFunc(TText.Instance, new TList(TText.Instance))));
+        env.Bind("text/contains",   Scheme([], Func(TText.Instance, TText.Instance, bool_)));
+        env.Bind("text/starts-with",Scheme([], Func(TText.Instance, TText.Instance, bool_)));
+
+        // list module (continued)
+        env.Bind("list/range", Scheme([], Func(TInt.Instance, TInt.Instance, new TList(TInt.Instance))));
+
         // Boolean values
         var boolType = new TName("bool");
         env.Bind("true",  Scheme([], boolType));

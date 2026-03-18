@@ -217,8 +217,22 @@ public class CompilerTests
     [Fact] public void BuiltinListMap()    => AssertCompiles("list/map (x -> x + 1) [1, 2, 3]");
     [Fact] public void BuiltinListFilter() => AssertCompiles("list/filter (x -> x > 2) [1, 2, 3, 4]");
     [Fact] public void BuiltinListFold()   => AssertCompiles("list/fold (a -> b -> a + b) 0 [1, 2, 3, 4]");
-    [Fact] public void BuiltinListReverse() => AssertCompiles("list/reverse [1, 2, 3]");
-    [Fact] public void BuiltinBytesToUtf8() => AssertCompiles("bytes/to-utf8-text ~68");
+    [Fact] public void BuiltinListReverse()     => AssertCompiles("list/reverse [1, 2, 3]");
+    [Fact] public void BuiltinBytesToUtf8()     => AssertCompiles("bytes/to-utf8-text ~68");
+    [Fact] public void BuiltinIntToText()       => AssertCompiles("int/to-text 42");
+    [Fact] public void BuiltinIntToTextNeg()    => AssertCompiles("int/to-text -7");
+    [Fact] public void BuiltinFloatToText()     => AssertCompiles("float/to-text 3.14");
+    [Fact] public void BuiltinFloatToTextWhole()=> AssertCompiles("float/to-text 2.0");
+    [Fact] public void BuiltinTextToInt()       => AssertCompiles("text/to-int \"42\"");
+    [Fact] public void BuiltinTextToIntNeg()    => AssertCompiles("text/to-int \"-7\"");
+    [Fact] public void BuiltinTextSlice()       => AssertCompiles("text/slice 1 4 \"hello\"");
+    [Fact] public void BuiltinTextAt()          => AssertCompiles("text/at 0 \"hello\"");
+    [Fact] public void BuiltinTextAtOob()       => AssertCompiles("text/at 10 \"hello\"", typeCheck: false);
+    [Fact] public void BuiltinTextChars()       => AssertCompiles("text/chars \"hi\"");
+    [Fact] public void BuiltinTextContains()    => AssertCompiles("text/contains \"ell\" \"hello\"");
+    [Fact] public void BuiltinTextStartsWith()  => AssertCompiles("text/starts-with \"he\" \"hello\"");
+    [Fact] public void BuiltinListRange()       => AssertCompiles("list/range 0 4");
+    [Fact] public void BuiltinListRangeOffset() => AssertCompiles("list/range 5 8");
 
     // ── Higher-order / advanced ───────────────────────────────────────────────
 

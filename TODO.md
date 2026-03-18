@@ -7,7 +7,7 @@
 - [x] Lexer — `Token.cs`, `Lexer.cs`
 - [x] AST + Parser — `Ast.cs`, `Parser.cs`
 - [x] Evaluator + pattern matching — `Evaluator.cs`, `ScrapValue.cs`, `ScrapEnv.cs`
-- [x] Built-ins — `Builtins.cs`: to-float, round, ceil, floor, bytes/to-utf8-text, list/first, list/length, list/repeat, list/map, list/filter, list/fold, list/reverse, list/sort, list/zip, text/length, text/repeat, text/trim, text/split, text/to-upper, text/to-lower, maybe/default, string/join, dict/get, abs, min, max
+- [x] Built-ins — `Builtins.cs`: to-float, round, ceil, floor, bytes/to-utf8-text, list/first, list/length, list/repeat, list/map, list/filter, list/fold, list/reverse, list/sort, list/zip, list/range, text/length, text/repeat, text/trim, text/split, text/at, text/chars, text/slice, text/contains, text/starts-with, text/to-upper, text/to-lower, maybe/default, string/join, dict/get, abs, min, max, int/to-text, float/to-text, text/to-int
 - [x] REPL — `Program.cs`
 - [x] Hindley-Milner type checker — `TypeChecker/`: ScrapType, Substitution, TypeEnv, TypeInferrer, BuiltinTypes
   - Inference for all expression forms
@@ -43,4 +43,4 @@
 - [ ] **HTTP platform: richer request input** — currently the handler only receives the path as a `ScrapText`. Extend to pass a record `{ path = "...", query = { key = "val", ... }, body = "..." }` so handlers can read query params (`?foo=bar`) and POST form/JSON bodies without changing the platform contract
 - [ ] **HTTP platform: SQL execution** — implement the `#query` effect in `HttpPlatform` (or a new `HttpDbPlatform`): after eval the dispatch loop checks for `#query { sql, then }`, runs the query against a real database (e.g. SQLite via `Microsoft.Data.Sqlite`), converts the result row to a Scrapscript record, and calls `then` — repeating until a terminal variant is reached. Connects naturally with `do` notation and the platform-injected `bind` decision above.
 - [ ] **Platform/network scrapyard** — push/pull over HTTP to a remote yard
-- [ ] **More builtins** — `int/to-text`, `float/to-text`, `text/contains`, `text/starts-with`, `list/range`, `dict/keys`, etc.
+- [ ] **More builtins** — `dict/keys`, `list/flatten`, `text/ends-with`, etc.
