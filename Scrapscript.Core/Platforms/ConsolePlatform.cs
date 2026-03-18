@@ -12,7 +12,7 @@ public class ConsolePlatform(TextWriter? output = null) : IPlatform
         var result = interpreter.Apply(program, new ScrapHole());
 
         if (result is ScrapText text)
-            _out.WriteLine(text.Value);
+            _out.Write(text.Value + "\n");
         else
             throw new ScrapTypeError(
                 $"Console platform expects text output, got: {result.Display()}");
