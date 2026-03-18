@@ -101,9 +101,15 @@ public static class BuiltinTypes
         env.Bind("text/chars",      Scheme([], new TFunc(TText.Instance, new TList(TText.Instance))));
         env.Bind("text/contains",   Scheme([], Func(TText.Instance, TText.Instance, bool_)));
         env.Bind("text/starts-with",Scheme([], Func(TText.Instance, TText.Instance, bool_)));
+        env.Bind("text/ends-with",  Scheme([], Func(TText.Instance, TText.Instance, bool_)));
 
         // list module (continued)
-        env.Bind("list/range", Scheme([], Func(TInt.Instance, TInt.Instance, new TList(TInt.Instance))));
+        env.Bind("list/range",   Scheme([], Func(TInt.Instance, TInt.Instance, new TList(TInt.Instance))));
+        env.Bind("list/flatten", Scheme(["a"], Func(new TList(new TList(a)), listA)));
+
+        // dict module (continued)
+        env.Bind("dict/keys", Scheme([], Func(new TVar("__dict__"), new TList(TText.Instance))));
+        env.Bind("dict/set",  Scheme(["b"], Func(TText.Instance, b2, new TVar("__dict__"), new TVar("__dict__"))));
 
         // Boolean values
         var boolType = new TName("bool");

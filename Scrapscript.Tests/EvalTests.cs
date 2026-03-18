@@ -577,6 +577,8 @@ public class EvalTests
     [Fact] public void TextContainsFalse()       => Assert.Equal(new ScrapVariant("false", null), Eval("text/contains \"xyz\" \"hello\""));
     [Fact] public void TextStartsWithTrue()      => Assert.Equal(new ScrapVariant("true",  null), Eval("text/starts-with \"he\" \"hello\""));
     [Fact] public void TextStartsWithFalse()     => Assert.Equal(new ScrapVariant("false", null), Eval("text/starts-with \"lo\" \"hello\""));
+    [Fact] public void TextEndsWithTrue()        => Assert.Equal(new ScrapVariant("true",  null), Eval("text/ends-with \"ld\" \"world\""));
+    [Fact] public void TextEndsWithFalse()       => Assert.Equal(new ScrapVariant("false", null), Eval("text/ends-with \"xx\" \"world\""));
 
     // ── list/range ────────────────────────────────────────────────────────────
 
@@ -590,4 +592,28 @@ public class EvalTests
 
     [Fact] public void ListRangeEmpty()  => Assert.Equal(new ScrapList(System.Collections.Immutable.ImmutableList<ScrapValue>.Empty), Eval("list/range 3 3"));
     [Fact] public void ListRangeOffset() => Assert.Equal(new ScrapList(System.Collections.Immutable.ImmutableList.Create<ScrapValue>(Int(5), Int(6), Int(7))), Eval("list/range 5 8"));
+
+    // ── list/flatten ──────────────────────────────────────────────────────────
+
+    [Fact] public void ListFlatten() => Assert.Equal(
+        new ScrapList(ImmutableList.Create<ScrapValue>(Int(1), Int(2), Int(3))),
+        Eval("list/flatten [[1, 2], [3]]"));
+
+    [Fact] public void ListFlattenEmpty() => Assert.Equal(
+        new ScrapList(ImmutableList<ScrapValue>.Empty),
+        Eval("list/flatten []"));
+
+    // ── dict/keys ─────────────────────────────────────────────────────────────
+
+    [Fact] public void DictKeys() => Assert.Equal(
+        new ScrapList(ImmutableList.Create<ScrapValue>(new ScrapText("x"), new ScrapText("y"))),
+        Eval("dict/keys { x = 1, y = 2 }"));
+
+    // ── dict/set ──────────────────────────────────────────────────────────────
+
+    [Fact] public void DictSetUpdatesKey() => Assert.Equal(Int(99),
+        Eval("(dict/set \"x\" 99 { x = 1 }) |> dict/get \"x\" |> maybe/default 0"));
+
+    [Fact] public void DictSetAddsKey() => Assert.Equal(Int(5),
+        Eval("(dict/set \"z\" 5 { x = 1 }) |> dict/get \"z\" |> maybe/default 0"));
 }

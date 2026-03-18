@@ -268,6 +268,12 @@ public static class BuiltinEnv
             _ => throw new ScrapTypeError("text/starts-with: expected two text values")
         }));
 
+        env.Set("text/ends-with", new ScrapBuiltin2("text/ends-with", (suffix, text) => (suffix, text) switch
+        {
+            (ScrapText s, ScrapText t) => new ScrapVariant(t.Value.EndsWith(s.Value) ? "true" : "false", null),
+            _ => throw new ScrapTypeError("text/ends-with: expected two text values")
+        }));
+
         // list module (continued)
         env.Set("list/range", new ScrapBuiltin2("list/range", (startVal, endVal) => (startVal, endVal) switch
         {
@@ -277,6 +283,33 @@ public static class BuiltinEnv
                     .ToImmutableList()),
             _ => throw new ScrapTypeError("list/range: expected two ints")
         }));
+
+        env.Set("list/flatten", new ScrapBuiltin("list/flatten", lst => lst switch
+        {
+            ScrapList l => new ScrapList(l.Items
+                .SelectMany(item => item is ScrapList inner
+                    ? inner.Items
+                    : throw new ScrapTypeError("list/flatten: expected list of lists"))
+                .ToImmutableList()),
+            _ => throw new ScrapTypeError("list/flatten: expected list")
+        }));
+
+        // dict module (continued)
+        env.Set("dict/keys", new ScrapBuiltin("dict/keys", dict => dict switch
+        {
+            ScrapRecord r => new ScrapList(r.Fields.Keys
+                .Select(k => (ScrapValue)new ScrapText(k))
+                .ToImmutableList()),
+            _ => throw new ScrapTypeError("dict/keys: expected record")
+        }));
+
+        env.Set("dict/set", new ScrapBuiltin("dict/set", key =>
+            new ScrapBuiltin("dict/set(key)", value =>
+                new ScrapBuiltin("dict/set(key,value)", dict => (key, dict) switch
+                {
+                    (ScrapText k, ScrapRecord r) => new ScrapRecord(r.Fields.SetItem(k.Value, value)),
+                    _ => throw new ScrapTypeError("dict/set: expected text key and record")
+                }))));
 
         // Boolean conveniences (#true and #false as values)
         env.Set("true", new ScrapVariant("true", null));
