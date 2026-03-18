@@ -298,6 +298,7 @@ public static class BuiltinEnv
         env.Set("dict/keys", new ScrapBuiltin("dict/keys", dict => dict switch
         {
             ScrapRecord r => new ScrapList(r.Fields.Keys
+                .OrderBy(k => k)
                 .Select(k => (ScrapValue)new ScrapText(k))
                 .ToImmutableList()),
             _ => throw new ScrapTypeError("dict/keys: expected record")
