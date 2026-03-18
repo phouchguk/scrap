@@ -1,8 +1,6 @@
 # Scrapscript — C# Implementation
 
-An unofficial, from-scratch implementation of [Scrapscript](https://scrapscript.org) in C# / .NET 10.
-
-> **Not an official implementation.** Scrapscript is designed by Taylor Troesh. This project independently implements the language from the spec for fun and learning. For the canonical implementation, see [scrapscript.org](https://scrapscript.org).
+A from-scratch implementation of [Scrapscript](https://scrapscript.org) in C# / .NET 10.
 
 ---
 
@@ -21,8 +19,6 @@ a + b + c
 
 ## Features
 
-This implementation covers the core language and then some:
-
 ### Language
 - **All primitive types** — `int`, `float`, `text`, `bytes`, `()` (hole)
 - **Lists** — `[1, 2, 3]`, cons `>+`, append `+<`, concat `++`
@@ -35,6 +31,7 @@ This implementation covers the core language and then some:
 - **Operators** — `+`, `-`, `*`, `/`, `%`, `++`, `+<`, `>+`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `|>`, `<|`, `>>`
 - **Function composition** — `f >> g`
 - **Recursive functions** — including mutual recursion across where-bindings
+- **Do notation** — `do x <- e, y <- e, final` desugars to `bind` calls for monadic sequencing
 
 ### Type System
 A full **Hindley-Milner type checker** (Algorithm W) runs before evaluation:
@@ -45,18 +42,52 @@ A full **Hindley-Milner type checker** (Algorithm W) runs before evaluation:
 - Type annotation enforcement — `: type` on bindings is checked against the inferred type
 - Exhaustiveness checking for variant pattern matches
 - Redundant arm detection
+- Annotation-guided inference for recursive bindings
+
+### JavaScript Compiler
+Compiles Scrapscript to JavaScript via an AST-walking emitter:
+- Integers compile to BigInt (`42n`), floats to JS numbers
+- Where-clauses compile to IIFEs with topological sort for mutual recursion
+- Variants compile to `{_tag, _val}` objects
+- Pattern matching compiles to JS conditionals and destructuring
+- Full runtime embedded in output (all builtins included)
+- `ScrapInterpreter.CompileToJs(src)` — entry point
+
+```sh
+dotnet run --project Scrapscript.Repl -- compile 'list/map (n -> n * n) [1,2,3]'
+# [1n, 4n, 9n]   (via node)
+```
 
 ### Content Addressability
 - **Flat binary encoding** — msgpack-compatible canonical serialization for all value types
 - **SHA1 hashing** — deterministic hash refs of the form `sha1~~<40 hex chars>`
 - **Local scrapyard** — filesystem store at `~/.scrap/yard/` with git-style sharding
-- **Hash ref evaluation** — `$sha1~~...` expressions are resolved at runtime by fetching from the yard
+- **Hash ref evaluation** — `$sha1~~...` expressions resolved at runtime from the yard
+- **Hash-ref type inference** — the type checker looks up stored values and infers their types
+
+### Scrap Maps
+Named, versioned bindings stored in `~/.scrap/map/`:
+- `name@version` syntax — `MapRef` AST node, evaluated against the local map store
+- `map init`, `map commit`, `map history` CLI commands
+- Point-in-time reads via `--t=` flag on `eval`
+
+### Platforms
+An `IPlatform` interface lets Scrapscript programs drive effectful interactions:
+- **`ConsolePlatform`** — `run --platform=console`, handles `#print` / `#read` effects
+- **`HttpPlatform`** — `run --platform=http`, serves a Scrapscript function as an HTTP handler
+- The platform dispatch loop repeatedly evaluates the program's effect variants until a terminal value is reached
 
 ### Builtins
 `abs`, `min`, `max`, `to-float`, `round`, `ceil`, `floor`,
-`list/first`, `list/length`, `list/map`, `list/filter`, `list/fold`, `list/repeat`, `list/reverse`, `list/sort`, `list/zip`,
-`text/length`, `text/repeat`, `text/trim`, `text/split`, `text/to-upper`, `text/to-lower`,
-`string/join`, `bytes/to-utf8-text`, `maybe/default`, `dict/get`
+`int/to-text`, `float/to-text`,
+`list/first`, `list/length`, `list/map`, `list/filter`, `list/fold`,
+`list/repeat`, `list/reverse`, `list/sort`, `list/zip`, `list/range`, `list/flatten`,
+`text/length`, `text/repeat`, `text/trim`, `text/split`, `text/at`, `text/chars`,
+`text/slice`, `text/contains`, `text/starts-with`, `text/ends-with`,
+`text/to-upper`, `text/to-lower`, `text/to-int`,
+`string/join`, `bytes/to-utf8-text`,
+`maybe/default`,
+`dict/get`, `dict/set`, `dict/keys`
 
 ---
 
@@ -100,9 +131,9 @@ point.x + point.y
 -- 7
 
 -- Variants and tagged unions
-describe #just 42
-; describe = | #nothing -> "empty" | #just n -> "got " ++ to-float n
--- "got 42.0"
+describe (#just 42)
+; describe = | #nothing -> "empty" | #just n -> "got " ++ int/to-text n
+-- "got 42"
 
 -- Higher-order functions
 list/map (n -> n * n) [1, 2, 3, 4, 5]
@@ -125,6 +156,13 @@ list/map even [0, 1, 2, 3, 4]
 ; double = n -> n * 2
 ; add1   = n -> n + 1
 -- 11
+
+-- Do notation
+do
+  x <- #pure 10,
+  y <- #pure 32,
+  #pure (x + y)
+-- #pure 42
 ```
 
 ### Type checker in action
@@ -147,19 +185,19 @@ x -> x + 1    -- (int -> int)
 
 ```sh
 -- Push a value into the local yard
-scrapscript push "3 * 5"
+dotnet run --project Scrapscript.Repl -- push "3 * 5"
 # $sha1~~c7255dc48b42d44f6c0676d6009051b7e1aa885b
 
 -- That's the number 15, encoded as a single byte: 0x0F
-scrapscript flat "3 * 5"
+dotnet run --project Scrapscript.Repl -- flat "3 * 5"
 # 0F
 
 -- Pull it back by hash
-scrapscript pull sha1~~c7255dc48b42d44f6c0676d6009051b7e1aa885b
+dotnet run --project Scrapscript.Repl -- pull sha1~~c7255dc48b42d44f6c0676d6009051b7e1aa885b
 # 15
 
 -- Reference it in an expression
-$sha1~~c7255dc48b42d44f6c0676d6009051b7e1aa885b + 1
+dotnet run --project Scrapscript.Repl -- eval '$sha1~~c7255dc48b42d44f6c0676d6009051b7e1aa885b + 1'
 # 16
 ```
 
@@ -198,20 +236,28 @@ defined: f
 
 Bindings (`name = expr`) persist across lines. Expressions are evaluated in the accumulated session environment.
 
-### Scrapyard CLI
+### CLI Subcommands
 
 ```sh
--- Initialize the local yard (~/.scrap/yard)
+-- Evaluate an expression
+dotnet run --project Scrapscript.Repl -- eval '1 + 1'
+
+-- Compile to JavaScript
+dotnet run --project Scrapscript.Repl -- compile 'list/map (n -> n * n) [1,2,3]'
+
+-- Run with a platform
+dotnet run --project Scrapscript.Repl -- run --platform=http 'req -> #send { status = 200, body = "hello" }'
+
+-- Scrapyard operations
 dotnet run --project Scrapscript.Repl -- yard init
-
--- Push an evaluated expression and get its hash reference
 dotnet run --project Scrapscript.Repl -- push '"hello, world"'
-
--- Print the raw flat encoding as hex
 dotnet run --project Scrapscript.Repl -- flat "[1, 2, 3]"
-
--- Fetch and display a stored value
 dotnet run --project Scrapscript.Repl -- pull sha1~~<hash>
+
+-- Map operations
+dotnet run --project Scrapscript.Repl -- map init mylib
+dotnet run --project Scrapscript.Repl -- map commit mylib 'add = a -> b -> a + b'
+dotnet run --project Scrapscript.Repl -- map history mylib
 ```
 
 Use the `SCRAP_YARD` environment variable to override the default yard location.
@@ -228,13 +274,14 @@ Scrapscript.sln
 │   ├── Eval/             ScrapValue.cs, ScrapEnv.cs, Evaluator.cs
 │   ├── TypeChecker/      ScrapType.cs, Substitution.cs, TypeEnv.cs,
 │   │                     TypeInferrer.cs, BuiltinTypes.cs
+│   ├── Compiler/         JsCompiler.cs
 │   ├── Serialization/    FlatEncoder.cs, FlatDecoder.cs
 │   ├── Scrapyard/        LocalYard.cs
 │   ├── Builtins/         Builtins.cs
 │   └── ScrapInterpreter.cs   (public API entry point)
 ├── Scrapscript.Repl/     Program.cs
-└── Scrapscript.Tests/    LexerTests.cs, ParserTests.cs,
-                          EvalTests.cs, TypeCheckerTests.cs,
+└── Scrapscript.Tests/    LexerTests.cs, ParserTests.cs, EvalTests.cs,
+                          TypeCheckerTests.cs, CompilerTests.cs,
                           FlatEncoderTests.cs
 ```
 
@@ -253,6 +300,9 @@ var result = interpreter.Eval("list/map (n -> n * n) [1, 2, 3]");
 // Infer the type of an expression
 var type = interpreter.TypeOf("a -> b -> a + b");
 // "('t0 -> ('t0 -> 't0))"
+
+// Compile to JavaScript
+var js = interpreter.CompileToJs("list/map (n -> n * n) [1, 2, 3]");
 ```
 
 With a scrapyard:
@@ -276,17 +326,17 @@ interpreter.Eval($"${hash} + 1");
 
 ## Test Coverage
 
-293 tests across lexer, parser, evaluator, type checker, flat encoder, and scrapyard integration.
+451 tests across lexer, parser, evaluator, type checker, JS compiler, flat encoder, and scrapyard integration.
 
 ```sh
 dotnet test
-# Passed! - Failed: 0, Passed: 293
+# Passed! - Failed: 0, Passed: 451
 ```
 
 ---
 
 ## Spec
 
-The language is documented at [scrapscript.org](https://scrapscript.org). This implementation tracks the spec closely and includes a local copy at `scrapscript-spec.txt` for reference. Additional documentation:
+The language is documented at [scrapscript.org](https://scrapscript.org). This implementation includes a local copy of the spec at `scrapscript-spec.txt`. Additional documentation:
 
 - [`docs/scrapyard.md`](docs/scrapyard.md) — deep dive on content addressability, the flat binary format, and the scrapyard CLI
