@@ -644,4 +644,26 @@ public class EvalTests
     public void TailRecursiveMutualRecursionDeep() =>
         Assert.Equal(new ScrapVariant("true", null),
             Eval("even 100000 ; even = | 0 -> #true | n -> odd (n - 1) ; odd = | 0 -> #false | n -> even (n - 1)", typeCheck: false));
+
+    [Fact]
+    public void DisambiguateSharedTagNamesViaDoubleColon()
+    {
+        // hand and leg both define #left and #right — :: disambiguates for the type checker
+        const string src = """
+            [hand::left 5, leg::left "knee"]
+            ; hand : #left int #right int
+            ; leg  : #left text #right text
+            """;
+        var res = Eval(src, typeCheck: false);
+        var list = Assert.IsType<ScrapList>(res);
+        Assert.Equal(2, list.Items.Count);
+
+        var h = Assert.IsType<ScrapVariant>(list.Items[0]);
+        Assert.Equal("left", h.Tag);
+        Assert.Equal(Int(5), h.Payload);
+
+        var l = Assert.IsType<ScrapVariant>(list.Items[1]);
+        Assert.Equal("left", l.Tag);
+        Assert.Equal(new ScrapText("knee"), l.Payload);
+    }
 }
