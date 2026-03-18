@@ -22,7 +22,7 @@ if (cliArgs.Length >= 1)
 
         case "flat" when cliArgs.Length >= 2:
         {
-            var src = string.Join(" ", cliArgs.Skip(1));
+            var src = ResolveSource(cliArgs.Skip(1).ToArray());
             var interpreter = new ScrapInterpreter(yard);
             var value = interpreter.Eval(src, typeCheck: false);
             var flat = FlatEncoder.Encode(value);
@@ -32,7 +32,7 @@ if (cliArgs.Length >= 1)
 
         case "push" when cliArgs.Length >= 2:
         {
-            var src = string.Join(" ", cliArgs.Skip(1));
+            var src = ResolveSource(cliArgs.Skip(1).ToArray());
             var interpreter = new ScrapInterpreter(yard);
             var value = interpreter.Eval(src, typeCheck: false);
             yard.Init();
@@ -60,7 +60,7 @@ if (cliArgs.Length >= 1)
             var jsArgs = cliArgs.Skip(1).ToArray();
             var includeRuntime = true;
             if (jsArgs[0] == "--no-runtime") { includeRuntime = false; jsArgs = jsArgs.Skip(1).ToArray(); }
-            var src = string.Join(" ", jsArgs);
+            var src = ResolveSource(jsArgs);
             var interpreter = new ScrapInterpreter(yard);
             Console.WriteLine(interpreter.CompileToJs(src, includeRuntime));
             return;
@@ -75,7 +75,7 @@ if (cliArgs.Length >= 1)
                 asOf = DateTimeOffset.Parse(evalArgs[0]["--t=".Length..]);
                 evalArgs = evalArgs.Skip(1).ToArray();
             }
-            var src = string.Join(" ", evalArgs);
+            var src = ResolveSource(evalArgs);
             var map = new LocalMap();
             var interpreter = new ScrapInterpreter(yard, map);
             var value = interpreter.Eval(src, typeCheck: false, asOf: asOf);
@@ -94,7 +94,7 @@ if (cliArgs.Length >= 1)
         case "map" when cliArgs.Length >= 4 && cliArgs[1] == "commit":
         {
             var name = cliArgs[2];
-            var src = string.Join(" ", cliArgs.Skip(3));
+            var src = ResolveSource(cliArgs.Skip(3).ToArray());
             var map = new LocalMap();
             var interpreter = new ScrapInterpreter(yard, map);
             var value = interpreter.Eval(src, typeCheck: false);
@@ -221,3 +221,9 @@ static bool DetectBinding(string input, out string name)
 
 static bool IsLikelyIncomplete(ParseError ex) =>
     ex.Message.Contains("Eof") || ex.Message.Contains("EOF");
+
+// If a single argument is an existing file path, read it; otherwise join args as source.
+static string ResolveSource(string[] args) =>
+    args.Length == 1 && File.Exists(args[0])
+        ? File.ReadAllText(args[0])
+        : string.Join(" ", args);

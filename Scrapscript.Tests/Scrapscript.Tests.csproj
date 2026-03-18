@@ -22,4 +22,8 @@
     <ProjectReference Include="..\Scrapscript.Core\Scrapscript.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\examples\**\*" CopyToOutputDirectory="PreserveNewest" Link="examples\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>
