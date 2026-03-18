@@ -35,8 +35,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"42\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        var tok = Assert.IsType<ScrapVariant>(list.Items[0]);
+        var tok = Assert.IsType<ScrapVariant>(Assert.Single(list.Items));
         Assert.Equal("int", tok.Tag);
         Assert.Equal(Int(42), tok.Payload);
     }
@@ -58,8 +57,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"3.14\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        var tok = Assert.IsType<ScrapVariant>(list.Items[0]);
+        var tok = Assert.IsType<ScrapVariant>(Assert.Single(list.Items));
         Assert.Equal("float", tok.Tag);
         Assert.Equal(Float(3.14), tok.Payload);
     }
@@ -69,8 +67,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"\\\"hi\\\"\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        var tok = Assert.IsType<ScrapVariant>(list.Items[0]);
+        var tok = Assert.IsType<ScrapVariant>(Assert.Single(list.Items));
         Assert.Equal("text", tok.Tag);
         Assert.Equal(Text("hi"), tok.Payload);
     }
@@ -80,8 +77,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"foo\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        var tok = Assert.IsType<ScrapVariant>(list.Items[0]);
+        var tok = Assert.IsType<ScrapVariant>(Assert.Single(list.Items));
         Assert.Equal("ident", tok.Tag);
         Assert.Equal(Text("foo"), tok.Payload);
     }
@@ -91,8 +87,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"#nothing\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        var tok = Assert.IsType<ScrapVariant>(list.Items[0]);
+        var tok = Assert.IsType<ScrapVariant>(Assert.Single(list.Items));
         Assert.Equal("tag", tok.Tag);
         Assert.Equal(Text("nothing"), tok.Payload);
     }
@@ -113,8 +108,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"->\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        Assert.Equal(Variant("arrow"), list.Items[0]);
+        Assert.Equal(Variant("arrow"), Assert.Single(list.Items));
     }
 
     [Fact]
@@ -122,8 +116,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"++\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        Assert.Equal(Variant("plus-plus"), list.Items[0]);
+        Assert.Equal(Variant("plus-plus"), Assert.Single(list.Items));
     }
 
     [Fact]
@@ -131,8 +124,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \">+\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        Assert.Equal(Variant("gt-plus"), list.Items[0]);
+        Assert.Equal(Variant("gt-plus"), Assert.Single(list.Items));
     }
 
     [Fact]
@@ -140,8 +132,7 @@ public class SelfHostingTests
     {
         var result = RunFile("lexer.ss", "mod.lex \"==\"");
         var list = Assert.IsType<ScrapList>(result);
-        Assert.Equal(1, list.Items.Count);
-        Assert.Equal(Variant("eq-eq"), list.Items[0]);
+        Assert.Equal(Variant("eq-eq"), Assert.Single(list.Items));
     }
 
     [Fact]
@@ -236,8 +227,7 @@ public class SelfHostingTests
         var rec = Assert.IsType<ScrapRecord>(v.Payload);
         Assert.Equal(Variant("var", Text("x")), rec.Fields["body"]);
         var binds = Assert.IsType<ScrapList>(rec.Fields["binds"]);
-        Assert.Equal(1, binds.Items.Count);
-        var bind = Assert.IsType<ScrapRecord>(binds.Items[0]);
+        var bind = Assert.IsType<ScrapRecord>(Assert.Single(binds.Items));
         Assert.Equal(Text("x"),                 bind.Fields["name"]);
         Assert.Equal(Variant("lit-int", Int(1)), bind.Fields["val"]);
     }
@@ -419,8 +409,7 @@ public class SelfHostingTests
         var v = Assert.IsType<ScrapVariant>(result);
         Assert.Equal("record", v.Tag);
         var fields = Assert.IsType<ScrapList>(v.Payload);
-        Assert.Equal(1, fields.Items.Count);
-        var field = Assert.IsType<ScrapRecord>(fields.Items[0]);
+        var field = Assert.IsType<ScrapRecord>(Assert.Single(fields.Items));
         Assert.Equal(Text("x"),              field.Fields["name"]);
         Assert.Equal(Variant("int", Int(1)), field.Fields["val"]);
     }
