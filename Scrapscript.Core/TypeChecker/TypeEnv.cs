@@ -114,6 +114,7 @@ public class TypeEnv
                 .ToImmutableDictionary(
                     f => f.Field,
                     f => ConvertTypeExpr(f.Type, typeParams))),
+            ListTypeExpr l => new TList(ConvertTypeExpr(l.ElementType, typeParams)),
             ApplyType a => ApplyGenericType(a, typeParams),
             VariantType => THole.Instance, // inline variant type used as payload — treated as opaque
             _ => throw new TypeCheckError($"Cannot convert type expression: {typeExpr}")

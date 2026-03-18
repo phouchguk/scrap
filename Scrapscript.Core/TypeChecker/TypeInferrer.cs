@@ -296,6 +296,7 @@ public class TypeInferrer
             case ApplyType a:      GatherNames(a.Fn, names); GatherNames(a.Arg, names); break;
             case GenericType g:    GatherNames(g.Body, names); break;
             case RecordTypeExpr r: foreach (var (_, t) in r.Fields) GatherNames(t, names); break;
+            case ListTypeExpr l: GatherNames(l.ElementType, names); break;
         }
     }
 

@@ -515,11 +515,24 @@ public class Parser(List<Token> tokens)
                 return new HolePat();
             case TokenType.HashTag:
                 Consume();
-                // #tag optionally followed by a payload pattern
+                // #tag optionally followed by one or more payload patterns
                 string tag = tok.Text;
                 Pattern? payload = null;
                 if (IsPatternStart())
-                    payload = ParseAtomPattern();
+                {
+                    var first = ParseAtomPattern();
+                    if (IsPatternStart())
+                    {
+                        var args = new List<Pattern> { first };
+                        while (IsPatternStart())
+                            args.Add(ParseAtomPattern());
+                        payload = new ListPat(args, null);
+                    }
+                    else
+                    {
+                        payload = first;
+                    }
+                }
                 return new VariantPat(tag, payload);
             case TokenType.Identifier:
                 Consume();
@@ -639,7 +652,7 @@ public class Parser(List<Token> tokens)
         // HashTag is NOT a type atom — it's a variant constructor, handled in ParseTypeExpr
         return Current.Type switch
         {
-            TokenType.Identifier or TokenType.LParen or TokenType.LBrace => true,
+            TokenType.Identifier or TokenType.LParen or TokenType.LBrace or TokenType.LBracket => true,
             _ => false
         };
     }
@@ -661,6 +674,20 @@ public class Parser(List<Token> tokens)
             }
             Expect(TokenType.RBrace);
             return new RecordTypeExpr(fields);
+        }
+        if (Check(TokenType.LBracket))
+        {
+            Consume();
+            var elementType = ParseTypeExpr();
+            Expect(TokenType.RBracket);
+            var listType = new ListTypeExpr(elementType);
+            if (Check(TokenType.Arrow))
+            {
+                Consume();
+                var ret = ParseTypeAtom();
+                return new FuncType(listType, ret);
+            }
+            return listType;
         }
         if (Check(TokenType.LParen))
         {
@@ -760,10 +787,24 @@ public class Parser(List<Token> tokens)
             RecordExpr r => new RecordPat(
                 r.Fields.Select(f => (f.Field, ExprToPattern(f.Value))).ToList(),
                 r.Spread),
-            ApplyExpr a when a.Fn is ConstructorExpr c =>
-                new VariantPat(c.Variant, ExprToPattern(a.Arg)),
+            ApplyExpr a => ExprVariantApplyToPattern(a),
             _ => throw new ParseError($"Cannot convert expression to pattern: {expr}")
         };
+    }
+
+    private Pattern ExprVariantApplyToPattern(ApplyExpr a)
+    {
+        // Unwrap left-associative apply chain: (#tag arg1) arg2 ... argN
+        var args = new List<Expr>();
+        Expr cur = a;
+        while (cur is ApplyExpr app) { args.Insert(0, app.Arg); cur = app.Fn; }
+        if (cur is ConstructorExpr c)
+        {
+            var pats = args.Select(ExprToPattern).ToList();
+            var payload = pats.Count == 1 ? pats[0] : new ListPat(pats, null);
+            return new VariantPat(c.Variant, payload);
+        }
+        throw new ParseError($"Cannot convert expression to pattern: {a}");
     }
 
     private Pattern ExprConcatToPattern(BinOpExpr b)

@@ -554,4 +554,24 @@ public class TypeCheckerTests
         // We only run type checking, not eval, to avoid a runtime "not found" error.
         interp.TypeOf("$sha1~~0000000000000000000000000000000000000000");
     }
+
+    // ── List type annotations ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ListTypeAnnotationOk()
+    {
+        AssertOk("f [1, 2, 3] ; f : [int] -> int = xs -> 0");
+    }
+
+    [Fact]
+    public void RejectListTypeAnnotationWrongElement()
+    {
+        AssertTypeError("f [1, 2, 3] ; f : [text] -> int = xs -> 0");
+    }
+
+    [Fact]
+    public void PolymorphicListAnnotationOk()
+    {
+        AssertOk("f [1, 2, 3] ; f : [a] -> a = xs -> 1");
+    }
 }

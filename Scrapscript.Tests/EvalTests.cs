@@ -221,6 +221,22 @@ public class EvalTests
         Assert.Equal(Int(4), list.Items[1]);
     }
 
+    [Fact]
+    public void MultiPayloadVariantPatternSpaceSeparated()
+    {
+        var res = Eval("(f (#node 1 2)) ; f = | #node l r -> l + r");
+        Assert.Equal(Int(3), res);
+    }
+
+    [Fact]
+    public void MultiPayloadVariantPatternSpaceSeparatedRecursive()
+    {
+        var res = Eval(
+            "(depth (#node (#node #leaf #leaf) #leaf))" +
+            "; depth = | #leaf -> 0 | #node l r -> 1 + (depth l)");
+        Assert.Equal(Int(2), res);
+    }
+
     // ── Bytes ─────────────────────────────────────────────────────────────────
 
     [Fact]

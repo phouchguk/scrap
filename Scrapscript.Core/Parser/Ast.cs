@@ -90,3 +90,4 @@ public record VariantType(List<(string Tag, TypeExpr? Payload)> Variants) : Type
 public record FuncType(TypeExpr From, TypeExpr To) : TypeExpr;
 public record ApplyType(TypeExpr Fn, TypeExpr Arg) : TypeExpr;
 public record RecordTypeExpr(List<(string Field, TypeExpr Type)> Fields) : TypeExpr;
+public record ListTypeExpr(TypeExpr ElementType) : TypeExpr;
