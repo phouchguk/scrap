@@ -616,4 +616,16 @@ public class EvalTests
 
     [Fact] public void DictSetAddsKey() => Assert.Equal(Int(5),
         Eval("(dict/set \"z\" 5 { x = 1 }) |> dict/get \"z\" |> maybe/default 0"));
+
+    // ── Tail call optimization ────────────────────────────────────────────────
+
+    [Fact]
+    public void TailRecursiveSumLargeN() =>
+        Assert.Equal(Int(500000500000L),
+            Eval("sum 1000000 0 ; sum = | 0 -> (acc -> acc) | n -> (acc -> sum (n - 1) (acc + n))", typeCheck: false));
+
+    [Fact]
+    public void TailRecursiveMutualRecursionDeep() =>
+        Assert.Equal(new ScrapVariant("true", null),
+            Eval("even 100000 ; even = | 0 -> #true | n -> odd (n - 1) ; odd = | 0 -> #false | n -> even (n - 1)", typeCheck: false));
 }

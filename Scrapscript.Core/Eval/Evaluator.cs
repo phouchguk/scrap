@@ -29,42 +29,94 @@ public class Evaluator
 
     private ScrapValue EvalExpr(Expr expr, ScrapEnv env)
     {
-        return expr switch
+        while (true)
         {
-            IntLit i => new ScrapInt(i.Value),
-            FloatLit f => new ScrapFloat(f.Value),
-            TextLit t => new ScrapText(t.Value),
-            BytesLit b => new ScrapBytes(b.Value),
-            HoleLit => new ScrapHole(),
-
-            Var v => EvalVar(v, env),
-            HashRef r => EvalHashRef(r),
-            MapRef mr => EvalMapRef(mr),
-
-            ListExpr l => EvalList(l, env),
-            RecordExpr r => EvalRecord(r, env),
-            RecordAccess ra => EvalRecordAccess(ra, env),
-
-            WhereExpr w => EvalWhere(w, env),
-            LambdaExpr la => ScrapFunction.Lambda(la.Param, la.Body, env),
-            CaseExpr ce => new ScrapCaseFunction(
-                ce.Arms.Select(a => (a.Pattern, a.Body)).ToList(), env),
-
-            ApplyExpr a => EvalApply(a, env),
-            BinOpExpr b => EvalBinOp(b, env),
-            NegExpr n => EvalExpr(n.Operand, env) switch
+            switch (expr)
             {
-                ScrapInt i   => new ScrapInt(-i.Value),
-                ScrapFloat f => new ScrapFloat(-f.Value),
-                var v => throw new ScrapTypeError($"Type error: cannot negate {v.Display()}")
-            },
+                case IntLit i:    return new ScrapInt(i.Value);
+                case FloatLit f:  return new ScrapFloat(f.Value);
+                case TextLit t:   return new ScrapText(t.Value);
+                case BytesLit b:  return new ScrapBytes(b.Value);
+                case HoleLit:     return new ScrapHole();
 
-            ConstructorExpr c => EvalConstructor(c, env),
-            TypeAnnotation ta => EvalExpr(ta.Value, env),  // ignore type annotations at runtime
-            TypeDefExpr => new ScrapHole(),                 // type definitions are no-ops at runtime
+                case Var v:       return EvalVar(v, env);
+                case HashRef r:   return EvalHashRef(r);
+                case MapRef mr:   return EvalMapRef(mr);
 
-            _ => throw new ScrapTypeError($"Cannot evaluate: {expr}")
-        };
+                case ListExpr l:      return EvalList(l, env);
+                case RecordExpr r:    return EvalRecord(r, env);
+                case RecordAccess ra: return EvalRecordAccess(ra, env);
+                case BinOpExpr b:     return EvalBinOp(b, env);
+
+                case NegExpr n:
+                    return EvalExpr(n.Operand, env) switch
+                    {
+                        ScrapInt i   => new ScrapInt(-i.Value),
+                        ScrapFloat f => new ScrapFloat(-f.Value),
+                        var v => throw new ScrapTypeError($"Type error: cannot negate {v.Display()}")
+                    };
+
+                case ConstructorExpr c: return EvalConstructor(c, env);
+                case TypeDefExpr:       return new ScrapHole();
+
+                // Tail positions — update and continue the loop
+
+                case TypeAnnotation ta:
+                    expr = ta.Value;
+                    continue;
+
+                case WhereExpr w:
+                    env  = BuildWhereEnv(w, env);
+                    expr = w.Body;
+                    continue;
+
+                case LambdaExpr la:
+                    return ScrapFunction.Lambda(la.Param, la.Body, env);
+
+                case CaseExpr ce:
+                    return new ScrapCaseFunction(
+                        ce.Arms.Select(a => (a.Pattern, a.Body)).ToList(), env);
+
+                case ApplyExpr a:
+                {
+                    var fn  = EvalExpr(a.Fn,  env);
+                    var arg = EvalExpr(a.Arg, env);
+
+                    if (fn is ScrapFunction f)
+                    {
+                        var bound = MatchPattern(f.Params[0], arg, f.Closure)
+                            ?? throw new ScrapMatchError($"Pattern match failed: {arg.Display()}");
+                        env  = f.Closure.ExtendMany(bound);
+                        expr = f.Body;
+                        continue;
+                    }
+
+                    if (fn is ScrapCaseFunction cf)
+                    {
+                        bool matched = false;
+                        foreach (var (pat, body) in cf.Arms)
+                        {
+                            var b2 = MatchPattern(pat, arg, cf.Closure);
+                            if (b2 != null)
+                            {
+                                env  = cf.Closure.ExtendMany(b2);
+                                expr = body;
+                                matched = true;
+                                break;
+                            }
+                        }
+                        if (!matched)
+                            throw new ScrapMatchError($"No matching case for: {arg.Display()}");
+                        continue;
+                    }
+
+                    return ApplyNonUserFunction(fn, arg);
+                }
+
+                default:
+                    throw new ScrapTypeError($"Cannot evaluate: {expr}");
+            }
+        }
     }
 
     private ScrapValue EvalVar(Var v, ScrapEnv env)
@@ -141,13 +193,12 @@ public class Evaluator
         return val;
     }
 
-    private ScrapValue EvalWhere(WhereExpr w, ScrapEnv env)
+    // Returns the child env with all bindings evaluated — body evaluation is
+    // deferred so the caller can assign it to `expr` and continue the loop.
+    private ScrapEnv BuildWhereEnv(WhereExpr w, ScrapEnv env)
     {
-        // Create a mutable child env for mutual recursion
         var childEnv = new ScrapEnv(env);
 
-        // Retry loop: handle forward references by deferring bindings that fail
-        // on ScrapNameError, retrying until stable.
         var remaining = new List<Binding>(w.Bindings);
         int prevCount = -1;
 
@@ -182,33 +233,18 @@ public class Evaluator
             EvalExpr(remaining[0].Value, childEnv);
         }
 
-        return EvalExpr(w.Body, childEnv);
-    }
-
-    private ScrapValue EvalApply(ApplyExpr a, ScrapEnv env)
-    {
-        var fn = EvalExpr(a.Fn, env);
-        var arg = EvalExpr(a.Arg, env);
-        return ApplyFunction(fn, arg);
+        return childEnv;
     }
 
     public ScrapValue ApplyFunction(ScrapValue fn, ScrapValue arg)
     {
         return fn switch
         {
-            ScrapFunction f => ApplyLambda(f, arg),
-            ScrapCaseFunction cf => ApplyCaseFunction(cf, arg),
-            ScrapBuiltin b => b.Apply(arg),
-            ScrapBuiltin2 b2 => new ScrapBuiltinPartial(b2.Name, arg, b2.Apply),
-            ScrapBuiltinPartial bp => bp.Apply(bp.First, arg),
-            // Variant constructor: applying args accumulates into payload
-            ScrapVariant { Payload: null } sv => new ScrapVariant(sv.Tag, arg),
-            ScrapVariant sv => sv.Payload switch
-            {
-                ScrapList l => new ScrapVariant(sv.Tag, new ScrapList(l.Items.Add(arg))),
-                var p => new ScrapVariant(sv.Tag, new ScrapList(ImmutableList.Create(p, arg)))
-            },
-            _ => throw new ScrapTypeError($"Cannot apply non-function: {fn.Display()}")
+            ScrapFunction f => EvalExpr(f.Body, f.Closure.ExtendMany(
+                MatchPattern(f.Params[0], arg, f.Closure)
+                ?? throw new ScrapMatchError($"Pattern match failed for argument: {arg.Display()}"))),
+            ScrapCaseFunction cf => ApplyCaseFunctionDirect(cf, arg),
+            _ => ApplyNonUserFunction(fn, arg),
         };
     }
 
@@ -216,26 +252,28 @@ public class Evaluator
     public static ScrapValue ApplyFunction(ScrapValue fn, ScrapValue arg, LocalYard? yard = null)
         => new Evaluator(yard).ApplyFunction(fn, arg);
 
-    private ScrapValue ApplyLambda(ScrapFunction f, ScrapValue arg)
+    private ScrapValue ApplyNonUserFunction(ScrapValue fn, ScrapValue arg) => fn switch
     {
-        var param = f.Params[0];
-        var bound = MatchPattern(param, arg, f.Closure);
-        if (bound == null)
-            throw new ScrapMatchError($"Pattern match failed for argument: {arg.Display()}");
-        var newEnv = f.Closure.ExtendMany(bound);
-        return EvalExpr(f.Body, newEnv);
-    }
+        ScrapBuiltin b => b.Apply(arg),
+        ScrapBuiltin2 b2 => new ScrapBuiltinPartial(b2.Name, arg, b2.Apply),
+        ScrapBuiltinPartial bp => bp.Apply(bp.First, arg),
+        // Variant constructor: applying args accumulates into payload
+        ScrapVariant { Payload: null } sv => new ScrapVariant(sv.Tag, arg),
+        ScrapVariant sv => sv.Payload switch
+        {
+            ScrapList l => new ScrapVariant(sv.Tag, new ScrapList(l.Items.Add(arg))),
+            var p => new ScrapVariant(sv.Tag, new ScrapList(ImmutableList.Create(p, arg)))
+        },
+        _ => throw new ScrapTypeError($"Cannot apply non-function: {fn.Display()}")
+    };
 
-    private ScrapValue ApplyCaseFunction(ScrapCaseFunction cf, ScrapValue arg)
+    private ScrapValue ApplyCaseFunctionDirect(ScrapCaseFunction cf, ScrapValue arg)
     {
         foreach (var (pat, body) in cf.Arms)
         {
             var bound = MatchPattern(pat, arg, cf.Closure);
             if (bound != null)
-            {
-                var newEnv = cf.Closure.ExtendMany(bound);
-                return EvalExpr(body, newEnv);
-            }
+                return EvalExpr(body, cf.Closure.ExtendMany(bound));
         }
         throw new ScrapMatchError($"No matching case for: {arg.Display()}");
     }
