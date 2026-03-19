@@ -383,8 +383,13 @@ public class TypeInferrer
             .ToList();
 
         if (missing.Count > 0)
+        {
+            var typeName = named.Name.StartsWith("$anon_")
+                ? "(" + string.Join(" ", typeDef.Variants.Select(v => "#" + v.Tag)) + ")"
+                : $"'{named.Name}'";
             throw new TypeCheckError(
-                $"Non-exhaustive match on '{named.Name}': missing {string.Join(", ", missing.Select(t => "#" + t))}");
+                $"Non-exhaustive match on {typeName}: missing {string.Join(", ", missing.Select(t => "#" + t))}");
+        }
     }
 
     // ── Application ───────────────────────────────────────────────────────────
@@ -392,10 +397,18 @@ public class TypeInferrer
     private (ScrapType, Substitution) InferApply(TypeEnv env, ApplyExpr a)
     {
         var (fnType, s1) = Infer(env, a.Fn);
-        var (argType, s2) = Infer(env.ApplySubst(s1), a.Arg);
+        // Keep a reference to the arg env — InferConstructor may register synthetic
+        // inline types (e.g. ($anon_a_b_c) on it via AddTypeDef.
+        var argEnv = env.ApplySubst(s1);
+        var (argType, s2) = Infer(argEnv, a.Arg);
         var retType = Fresh();
         var s3 = Unify(fnType.Apply(s2), new TFunc(argType, retType));
         var s = s1.Compose(s2).Compose(s3);
+        // Re-check exhaustiveness now that the argument type is concrete.
+        // This catches (#a #b #c)::a |> | #a -> 1 | #b -> 2, where the case
+        // expression is inferred before the constructor registers the inline type.
+        if (a.Fn is CaseExpr ce)
+            CheckExhaustiveness(ce, argType.Apply(s), argEnv);
         return (retType.Apply(s), s);
     }
 
@@ -535,8 +548,75 @@ public class TypeInferrer
             return MakeConstructorType(typeDef, c.Variant, env);
         }
 
+        // inline type::variant — e.g. (#a #b #c)::a
+        // The LHS parses as an Expr tree; reconstruct a TypeDef from it.
+        var inlineVariants = new List<(string Tag, TypeExpr? Payload)>();
+        if (TryCollectInlineVariants(c.TypeExpr, inlineVariants) && inlineVariants.Count > 0)
+        {
+            var syntheticName = "$anon_" + string.Join("_", inlineVariants.Select(v => v.Tag));
+            var existing = env.LookupTypeDef(syntheticName);
+            if (existing == null)
+            {
+                var variantDefs = inlineVariants.Select(v =>
+                {
+                    var payloadTypes = v.Payload == null
+                        ? ImmutableList<ScrapType>.Empty
+                        : ImmutableList.Create(env.ConvertTypeExpr(v.Payload, []));
+                    return new VariantDef(v.Tag, payloadTypes);
+                }).ToImmutableList();
+                existing = new TypeDef(syntheticName, ImmutableList<string>.Empty, variantDefs);
+                env.AddTypeDef(existing);
+            }
+            if (!existing.Variants.Any(v => v.Tag == c.Variant))
+                throw new TypeCheckError($"Inline type has no variant '{c.Variant}'");
+            return MakeConstructorType(existing, c.Variant, env);
+        }
+
         return (Fresh(), Substitution.Empty);
     }
+
+    // Walk an Expr tree produced by parsing (#a #b #c) or (#radius int) and
+    // extract a flat list of variant definitions. Returns false if the expression
+    // doesn't look like an inline type.
+    private static bool TryCollectInlineVariants(Expr expr, List<(string Tag, TypeExpr? Payload)> variants)
+    {
+        switch (expr)
+        {
+            // Single nullary variant: #tag
+            case ConstructorExpr { TypeExpr: Var { Name: "__variant__" } } c:
+                variants.Add((c.Variant, null));
+                return true;
+
+            case ApplyExpr apply:
+                // Two cases:
+                // 1. Chain of nullary variants: (#a #b #c) → ApplyExpr(ApplyExpr(#a,#b),#c)
+                //    Right side is itself a nullary constructor
+                if (apply.Arg is ConstructorExpr { TypeExpr: Var { Name: "__variant__" } } rightCtor)
+                {
+                    if (!TryCollectInlineVariants(apply.Fn, variants)) return false;
+                    variants.Add((rightCtor.Variant, null));
+                    return true;
+                }
+                // 2. Single variant with payload: (#radius int) → ApplyExpr(#radius, Var("int"))
+                if (apply.Fn is ConstructorExpr { TypeExpr: Var { Name: "__variant__" } } tagCtor)
+                {
+                    var payload = TryConvertExprToTypeExpr(apply.Arg);
+                    if (payload == null) return false;
+                    variants.Add((tagCtor.Variant, payload));
+                    return true;
+                }
+                return false;
+
+            default:
+                return false;
+        }
+    }
+
+    private static TypeExpr? TryConvertExprToTypeExpr(Expr expr) => expr switch
+    {
+        Var v => new NamedType(v.Name),
+        _ => null
+    };
 
     // Build the type of a constructor: either TName(T) if no payload,
     // or TFunc(payload1, TFunc(payload2, ... TName(T)))

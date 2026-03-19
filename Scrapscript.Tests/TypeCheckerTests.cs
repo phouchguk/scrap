@@ -240,6 +240,24 @@ public class TypeCheckerTests
             "; scoop : #vanilla #chocolate #strawberry");
     }
 
+    [Fact]
+    public void InlineTypeExhaustivenessOk()
+    {
+        Assert.Equal("int", TypeOf("(#a #b #c)::a |> | #a -> 1 | #b -> 2 | #c -> 3"));
+    }
+
+    [Fact]
+    public void RejectInlineTypeNonExhaustive()
+    {
+        AssertTypeError("(#a #b #c)::a |> | #a -> 1 | #b -> 2");
+    }
+
+    [Fact]
+    public void RejectInlineTypeInvalidVariant()
+    {
+        AssertTypeError("(#a #b #c)::z");
+    }
+
     // ── Comparison operators ──────────────────────────────────────────────────
 
     // ── Division ──────────────────────────────────────────────────────────────
