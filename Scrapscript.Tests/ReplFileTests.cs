@@ -19,7 +19,7 @@ public class ReplFileTests
         var path = Path.Combine(ExamplesDir, "fibonacci.ss");
         var src = ResolveSource(path);
 
-        var result = new ScrapInterpreter().Eval(src, typeCheck: false);
+        var result = new ScrapInterpreter().Eval(src);
 
         var list = Assert.IsType<ScrapList>(result);
         var expected = ImmutableList.Create<ScrapValue>(

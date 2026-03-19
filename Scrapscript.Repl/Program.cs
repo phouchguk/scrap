@@ -24,9 +24,9 @@ if (cliArgs.Length >= 1)
         {
             var src = ResolveSource(cliArgs.Skip(1).ToArray());
             var interpreter = new ScrapInterpreter(yard);
-            var value = interpreter.Eval(src, typeCheck: false);
-            var flat = FlatEncoder.Encode(value);
-            Console.WriteLine(Convert.ToHexString(flat));
+            try { var value = interpreter.Eval(src); var flat = FlatEncoder.Encode(value); Console.WriteLine(Convert.ToHexString(flat)); }
+            catch (TypeCheckError ex)  { Console.Error.WriteLine($"Type error: {ex.Message}"); Environment.Exit(1); }
+            catch (Exception ex)       { Console.Error.WriteLine($"Error: {ex.Message}"); Environment.Exit(1); }
             return;
         }
 
@@ -34,10 +34,9 @@ if (cliArgs.Length >= 1)
         {
             var src = ResolveSource(cliArgs.Skip(1).ToArray());
             var interpreter = new ScrapInterpreter(yard);
-            var value = interpreter.Eval(src, typeCheck: false);
-            yard.Init();
-            var hashRef = yard.Push(FlatEncoder.Encode(value));
-            Console.WriteLine($"${hashRef}");
+            try { var value = interpreter.Eval(src); yard.Init(); var hashRef = yard.Push(FlatEncoder.Encode(value)); Console.WriteLine($"${hashRef}"); }
+            catch (TypeCheckError ex)  { Console.Error.WriteLine($"Type error: {ex.Message}"); Environment.Exit(1); }
+            catch (Exception ex)       { Console.Error.WriteLine($"Error: {ex.Message}"); Environment.Exit(1); }
             return;
         }
 
@@ -78,8 +77,16 @@ if (cliArgs.Length >= 1)
             var src = ResolveSource(evalArgs);
             var map = new LocalMap();
             var interpreter = new ScrapInterpreter(yard, map);
-            var value = interpreter.Eval(src, typeCheck: false, asOf: asOf);
-            Console.WriteLine(value.Display());
+            try
+            {
+                var value = interpreter.Eval(src, typeCheck: true, asOf: asOf);
+                Console.WriteLine(value.Display());
+            }
+            catch (TypeCheckError ex)    { Console.Error.WriteLine($"Type error: {ex.Message}"); Environment.Exit(1); }
+            catch (ScrapTypeError ex)    { Console.Error.WriteLine($"Type error: {ex.Message}"); Environment.Exit(1); }
+            catch (ScrapNameError ex)    { Console.Error.WriteLine($"Name error: {ex.Message}"); Environment.Exit(1); }
+            catch (ScrapMatchError ex)   { Console.Error.WriteLine($"Match error: {ex.Message}"); Environment.Exit(1); }
+            catch (Exception ex)         { Console.Error.WriteLine($"Error: {ex.Message}"); Environment.Exit(1); }
             return;
         }
 
@@ -97,12 +104,9 @@ if (cliArgs.Length >= 1)
             var src = ResolveSource(cliArgs.Skip(3).ToArray());
             var map = new LocalMap();
             var interpreter = new ScrapInterpreter(yard, map);
-            var value = interpreter.Eval(src, typeCheck: false);
-            yard.Init();
-            var hashRef = yard.Push(FlatEncoder.Encode(value));
-            map.Init();
-            var label = map.Commit(name, hashRef);
-            Console.WriteLine(label);
+            try { var value = interpreter.Eval(src); yard.Init(); var hashRef = yard.Push(FlatEncoder.Encode(value)); map.Init(); Console.WriteLine(map.Commit(name, hashRef)); }
+            catch (TypeCheckError ex)  { Console.Error.WriteLine($"Type error: {ex.Message}"); Environment.Exit(1); }
+            catch (Exception ex)       { Console.Error.WriteLine($"Error: {ex.Message}"); Environment.Exit(1); }
             return;
         }
 
