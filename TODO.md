@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 340/340 tests passing
+## Status: 517/517 tests passing
 
 ## Completed
 
@@ -29,18 +29,23 @@
 - [x] **`scrapscript eval` subcommand** — evaluate an expression from the CLI with full scrapyard and map support; `--t=` flag for point-in-time map reads
 - [x] **Hash-ref type inference** — type checker looks up hash refs in the scrapyard and infers the stored value's type rather than treating them as opaque
 - [x] **Scrap maps** — named versioned bindings (`name@version`) stored in `~/.scrap/map/`; `map init`, `map commit`, `map history` CLI commands; `MapRef` AST node and evaluator support
-- [x] **Platforms** — `IPlatform` interface, `ConsolePlatform` (`run --platform=console`), `HttpPlatform` (`run --platform=http`); `ScrapInterpreter.Apply`
-- [x] **Do notation** — `do x <- e, y <- e, final` sugar desugaring to `bind` calls; `<-` lexer token; no new AST node needed
+- [x] **Platforms** — `IPlatform` interface with compile-time type contracts (`InputType`/`OutputType`); `ConsolePlatform` (`run --platform=console`, programs are `() -> text`); `HttpPlatform` (`run --platform=http`, programs are `text -> http-response` where `http-response : #send { status = int, body = text }`); platform dispatch loop pattern established
+
+## Towards Elm-style "no runtime errors"
+
+These are the remaining gaps between our type safety and Elm's guarantee. In Elm, if it compiles it won't throw at runtime. These items close that gap:
+
+- [ ] **`TRecord` in the type system** — the single biggest gap. Currently, record payloads inside variant types are typed as opaque `TVar("_r")`, so `#send { status = int, body = text }` is only half-checked: the tag is verified but the record contents are not. Fix: add `TRecord of Map<string, ScrapType>` to `ScrapType.cs`, update `TypeInferrer` to infer record literal types, update `VariantDef` to carry record payload types, and update `PlatformTypes.RuntimeCheck` to delegate to compile-time. Once done, `#send { body = "hi" }` (missing `status`) would be a compile-time error.
+
+- [ ] **Exhaustiveness for anonymous variants** — exhaustiveness is currently checked only when the type checker can identify which named `TypeDef` a variant belongs to. Anonymous variant patterns (e.g. `| #just n -> ...` in a function with no type annotation) get no exhaustiveness check. Fix: propagate the expected type into pattern match inference so all variant matches are checked for completeness.
+
+- [ ] **Remove defensive runtime type checks from the evaluator** — `Evaluator.cs` still has many `throw new ScrapTypeError(...)` guards for cases that should be unreachable if the type checker is doing its job (e.g. applying a non-function, adding non-numbers). These are currently needed because the type checker has gaps. Once `TRecord` and exhaustiveness are complete, audit these and remove the ones the type checker now covers — making the evaluator prove, not just hope, they're unreachable.
+
+- [ ] **Seal the `typeCheck: false` escape hatch** — make `typeCheck` internal or remove it from the public `Eval` API. Platforms already call `CheckAgainstPlatform` then `Eval(typeCheck: false)` (correct: don't type-check twice). The risk is external callers skipping type checking. Fix: remove the parameter from the public API and have the type checker run unconditionally, with platforms using a separate internal entry point.
 
 ## Possible next steps
 
-- [ ] **`bind` availability for `do` notation** — currently `bind` must be defined manually in every program that uses `do`. Two options to decide between:
-  - **Builtin `bind`**: hardcoded for `#pure` (unwrap) and terminals (`#ok`/`#notfound`/`#error` short-circuit); not extensible to new effect tags
-  - **Platform-injected `bind`**: each platform pre-loads `bind` (and helpers like `query`) into the interpreter env before eval, tuned to its own effect set; user program has no boilerplate
-  - Could do both: builtin handles `#pure`/terminals, platforms shadow it with a richer version for their specific effects
-
-
 - [ ] **HTTP platform: richer request input** — currently the handler only receives the path as a `ScrapText`. Extend to pass a record `{ path = "...", query = { key = "val", ... }, body = "..." }` so handlers can read query params (`?foo=bar`) and POST form/JSON bodies without changing the platform contract
-- [ ] **HTTP platform: SQL execution** — implement the `#query` effect in `HttpPlatform` (or a new `HttpDbPlatform`): after eval the dispatch loop checks for `#query { sql, then }`, runs the query against a real database (e.g. SQLite via `Microsoft.Data.Sqlite`), converts the result row to a Scrapscript record, and calls `then` — repeating until a terminal variant is reached. Connects naturally with `do` notation and the platform-injected `bind` decision above.
+- [ ] **HTTP platform: effect loop** — implement the `#query { sql, then }` effect: after eval, if the result is `#query`, run the SQL against a database, apply `then` to the result rows, and loop until a `#send` terminal is reached. This is the full platform dispatch loop described in the original spec.
 - [ ] **Platform/network scrapyard** — push/pull over HTTP to a remote yard
 - [ ] **More builtins** — additional built-ins as needed

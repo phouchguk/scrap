@@ -116,13 +116,6 @@ public static class BuiltinTypes
         env.Bind("true",  Scheme([], boolType));
         env.Bind("false", Scheme([], boolType));
 
-        // Monadic bind: ∀ a b c. a -> (b -> c) -> c
-        // Approximate type — accurately types the continuation chain but not the short-circuit case
-        // (full accuracy requires higher-kinded types)
-        var c = new TVar("c");
-        env.Bind("bind", Scheme(["a", "b", "c"],
-            new TFunc(a, new TFunc(new TFunc(b2, c), c))));
-
         return env;
 
         static TypeScheme Scheme(string[] vars, ScrapType type) =>

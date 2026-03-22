@@ -31,7 +31,6 @@ a + b + c
 - **Operators** — `+`, `-`, `*`, `/`, `%`, `++`, `+<`, `>+`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `|>`, `<|`, `>>`
 - **Function composition** — `f >> g`
 - **Recursive functions** — including mutual recursion across where-bindings
-- **Do notation** — `do x <- e, y <- e, final` desugars to `bind` calls for monadic sequencing
 
 ### Type System
 A full **Hindley-Milner type checker** (Algorithm W) runs before evaluation:
@@ -73,9 +72,9 @@ Named, versioned bindings stored in `~/.scrap/map/`:
 
 ### Platforms
 An `IPlatform` interface lets Scrapscript programs drive effectful interactions:
-- **`ConsolePlatform`** — `run --platform=console`, handles `#print` / `#read` effects
-- **`HttpPlatform`** — `run --platform=http`, serves a Scrapscript function as an HTTP handler
-- The platform dispatch loop repeatedly evaluates the program's effect variants until a terminal value is reached
+- **`ConsolePlatform`** — `run --platform=console`, programs are `() -> text`
+- **`HttpPlatform`** — `run --platform=http`, programs are `text -> http-response` where `http-response` is `#send { status = int, body = text }`
+- The platform dispatches effect descriptors returned by the program — the foundation for future effect loops (`#query`, `#read`, etc.)
 
 ### Builtins
 `abs`, `min`, `max`, `to-float`, `round`, `ceil`, `floor`,
@@ -157,12 +156,6 @@ list/map even [0, 1, 2, 3, 4]
 ; add1   = n -> n + 1
 -- 11
 
--- Do notation
-do
-  x <- #pure 10,
-  y <- #pure 32,
-  #pure (x + y)
--- #pure 42
 ```
 
 ### Type checker in action
@@ -326,11 +319,11 @@ interpreter.Eval($"${hash} + 1");
 
 ## Test Coverage
 
-451 tests across lexer, parser, evaluator, type checker, JS compiler, flat encoder, and scrapyard integration.
+517 tests across lexer, parser, evaluator, type checker, JS compiler, flat encoder, platform, and scrapyard integration.
 
 ```sh
 dotnet test
-# Passed! - Failed: 0, Passed: 451
+# Passed! - Failed: 0, Passed: 517
 ```
 
 ---

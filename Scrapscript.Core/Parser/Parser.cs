@@ -357,9 +357,6 @@ public class Parser(List<Token> tokens)
                 Consume();
                 // #tag may or may not have a payload — that's handled at application level
                 return new ConstructorExpr(new Var("__variant__"), tok.Text);
-            case TokenType.Identifier when tok.Text == "do":
-                Consume(); // "do"
-                return ParseDo();
             case TokenType.Identifier:
                 Consume();
                 // name@version → MapRef
@@ -717,51 +714,6 @@ public class Parser(List<Token> tokens)
             return new NamedType(name);
         }
         throw new ParseError($"Expected type expression at {Current.Line}:{Current.Col}");
-    }
-
-    // ── Do notation: do x <- e, y <- e, final ────────────────────────────────
-    // Desugars to: bind e (x -> bind e (y -> final))
-    // 'bind' must be in scope at runtime — user-defined or platform-provided.
-
-    private Expr ParseDo()
-    {
-        var steps = new List<(Pattern Pat, Expr Expr)>();
-
-        while (true)
-        {
-            // Bind step: identifier <- expr ,
-            if (Current.Type == TokenType.Identifier && Peek().Type == TokenType.LtMinus)
-            {
-                var name = Consume().Text;  // identifier
-                Consume();                  // <-
-                var expr = ParsePipe();
-                steps.Add((new VarPat(name), expr));
-                Expect(TokenType.Comma);
-            }
-            // Wildcard bind step: _ <- expr ,  (for side-effect-only steps)
-            else if (Current.Type == TokenType.Wildcard && Peek().Type == TokenType.LtMinus)
-            {
-                Consume();                  // _
-                Consume();                  // <-
-                var expr = ParsePipe();
-                steps.Add((new WildcardPat(), expr));
-                Expect(TokenType.Comma);
-            }
-            else
-            {
-                // Final expression — desugar from right to left
-                var final = ParsePipe();
-                Expr result = final;
-                for (int i = steps.Count - 1; i >= 0; i--)
-                {
-                    var (pat, e) = steps[i];
-                    result = new ApplyExpr(
-                        new ApplyExpr(new Var("bind"), e),
-                        new LambdaExpr(pat, result));
-                }
-                return result;
-            }
-        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

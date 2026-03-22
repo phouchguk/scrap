@@ -34,21 +34,23 @@ public class PlatformTests
             platform.Run(new ScrapInterpreter(), "_ -> 42"));
     }
 
+    // ── HttpPlatform dispatch ─────────────────────────────────────────────────
+
     [Fact]
-    public void HttpPlatform_OkVariant_Returns200()
+    public void HttpPlatform_Send200()
     {
         var interp = new ScrapInterpreter();
-        var fn = interp.Eval("""_ -> #ok "Hello" """, typeCheck: false);
+        var fn = interp.Eval("""_ -> #send { status = 200, body = "Hello" } """, typeCheck: false);
         var (status, body) = HttpPlatform.Dispatch(interp, fn, "/");
         Assert.Equal(200, status);
         Assert.Equal("Hello", body);
     }
 
     [Fact]
-    public void HttpPlatform_NotfoundVariant_Returns404()
+    public void HttpPlatform_Send404()
     {
         var interp = new ScrapInterpreter();
-        var fn = interp.Eval("""_ -> #notfound "gone" """, typeCheck: false);
+        var fn = interp.Eval("""_ -> #send { status = 404, body = "gone" } """, typeCheck: false);
         var (status, body) = HttpPlatform.Dispatch(interp, fn, "/missing");
         Assert.Equal(404, status);
         Assert.Equal("gone", body);
@@ -58,7 +60,9 @@ public class PlatformTests
     public void HttpPlatform_CaseFunctionRoutes()
     {
         var interp = new ScrapInterpreter();
-        var fn = interp.Eval("""| "/" -> #ok "home" | _ -> #notfound "nope" """, typeCheck: false);
+        var fn = interp.Eval(
+            """| "/" -> #send { status = 200, body = "home" } | _ -> #send { status = 404, body = "nope" } """,
+            typeCheck: false);
         var (s1, b1) = HttpPlatform.Dispatch(interp, fn, "/");
         var (s2, b2) = HttpPlatform.Dispatch(interp, fn, "/other");
         Assert.Equal((200, "home"), (s1, b1));
@@ -107,17 +111,9 @@ public class PlatformTests
     {
         var interp = new ScrapInterpreter();
         interp.CheckAgainstPlatform(
-            """| "/" -> #ok "home" | "/about" -> #ok "about" | _ -> #notfound "nope" """,
+            """| "/" -> #send { status = 200, body = "home" } | _ -> #send { status = 404, body = "nope" } """,
             new HttpPlatform());
         // no exception = pass
-    }
-
-    [Fact]
-    public void HttpPlatform_TypeCheck_RejectsWrongPayloadType()
-    {
-        var interp = new ScrapInterpreter();
-        Assert.Throws<TypeCheckError>(() =>
-            interp.CheckAgainstPlatform("_ -> #ok 42", new HttpPlatform()));
     }
 
     [Fact]
@@ -126,36 +122,34 @@ public class PlatformTests
         var interp = new ScrapInterpreter();
         var ex = Assert.Throws<TypeCheckError>(() =>
             interp.CheckAgainstPlatform("_ -> 42", new HttpPlatform()));
-        Assert.Contains("http-result", ex.Message);
+        Assert.Contains("http-response", ex.Message);
     }
 
     [Fact]
     public void PlatformTypes_RuntimeCheck_AcceptsCorrectVariant()
     {
         var interp = new ScrapInterpreter();
-        new HttpPlatform().RegisterTypes(interp.TypeEnv);
-        var outputType = new HttpPlatform().OutputType;
-        PlatformTypes.RuntimeCheck(new ScrapVariant("ok", new ScrapText("hello")), outputType, interp.TypeEnv);
+        var platform = new HttpPlatform();
+        platform.RegisterTypes(interp.TypeEnv);
+        var outputType = platform.OutputType;
+        // #send with a record payload is the expected terminal effect
+        PlatformTypes.RuntimeCheck(
+            new ScrapVariant("send", new ScrapRecord(
+                System.Collections.Immutable.ImmutableDictionary<string, ScrapValue>.Empty
+                    .Add("status", new ScrapInt(200))
+                    .Add("body", new ScrapText("hello")))),
+            outputType, interp.TypeEnv);
         // no exception = pass
-    }
-
-    [Fact]
-    public void PlatformTypes_RuntimeCheck_RejectsWrongVariantPayload()
-    {
-        var interp = new ScrapInterpreter();
-        new HttpPlatform().RegisterTypes(interp.TypeEnv);
-        var outputType = new HttpPlatform().OutputType;
-        Assert.Throws<ScrapTypeError>(() =>
-            PlatformTypes.RuntimeCheck(new ScrapVariant("ok", new ScrapInt(42)), outputType, interp.TypeEnv));
     }
 
     [Fact]
     public void PlatformTypes_RuntimeCheck_RejectsUnknownTag()
     {
         var interp = new ScrapInterpreter();
-        new HttpPlatform().RegisterTypes(interp.TypeEnv);
-        var outputType = new HttpPlatform().OutputType;
+        var platform = new HttpPlatform();
+        platform.RegisterTypes(interp.TypeEnv);
+        var outputType = platform.OutputType;
         Assert.Throws<ScrapTypeError>(() =>
-            PlatformTypes.RuntimeCheck(new ScrapVariant("redirect", new ScrapText("/home")), outputType, interp.TypeEnv));
+            PlatformTypes.RuntimeCheck(new ScrapVariant("ok", new ScrapText("hello")), outputType, interp.TypeEnv));
     }
 }

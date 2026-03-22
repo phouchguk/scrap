@@ -316,13 +316,6 @@ public static class BuiltinEnv
         env.Set("true", new ScrapVariant("true", null));
         env.Set("false", new ScrapVariant("false", null));
 
-        // Monadic bind: unwrap #pure, short-circuit everything else
-        env.Set("bind", new ScrapBuiltin("bind", m =>
-            new ScrapBuiltin("bind(m)", f =>
-                m is ScrapVariant { Tag: "pure", Payload: var v }
-                    ? Evaluator.ApplyFunction(f, v!)
-                    : m)));
-
         return env;
     }
 }

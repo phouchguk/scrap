@@ -499,52 +499,6 @@ public class EvalTests
         Assert.Equal(new ScrapInt(43), result);
     }
 
-    // ── Do notation ───────────────────────────────────────────────────────────
-    // bind = m -> f -> (| #pure v -> f v | x -> x) m
-    // #pure wraps a value; #ok / #notfound / #error are terminal effects.
-
-    private const string BindDef =
-        "bind = m -> f -> (| #pure v -> f v | x -> x) m";
-
-    [Fact]
-    public void Do_NoBinds_EvaluatesBody()
-    {
-        Assert.Equal(Int(42), Eval("do 42"));
-    }
-
-    [Fact]
-    public void Do_SingleBind_UnwrapsPureValue()
-    {
-        // do x <- #pure 10, x + 1  =>  11
-        var result = Eval("do x <- #pure 10, x + 1");
-        Assert.Equal(Int(11), result);
-    }
-
-    [Fact]
-    public void Do_TwoBinds_ChainsThroughPure()
-    {
-        // do x <- #pure 3, y <- #pure 4, x + y  =>  7
-        var result = Eval("do x <- #pure 3, y <- #pure 4, x + y");
-        Assert.Equal(Int(7), result);
-    }
-
-    [Fact]
-    public void Do_TerminalVariantPassesThrough()
-    {
-        // do x <- #pure "hi", #ok x  =>  #ok "hi"
-        var result = Eval("""do x <- #pure "hi", #ok x""");
-        Assert.Equal(new ScrapVariant("ok", Text("hi")), result);
-    }
-
-    [Fact]
-    public void Do_TerminalShortCircuits()
-    {
-        // If bind encounters a non-#pure effect, it passes it through unchanged.
-        // do x <- #ok "done", x ++ "!"  — the #ok "done" short-circuits, never runs x ++ "!"
-        var result = Eval("""do x <- #ok "done", x ++ "!" """);
-        Assert.Equal(new ScrapVariant("ok", Text("done")), result);
-    }
-
     // ── int/to-text, float/to-text ────────────────────────────────────────────
 
     [Fact] public void IntToText()        => Assert.Equal(Text("42"),  Eval("int/to-text 42"));

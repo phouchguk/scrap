@@ -156,7 +156,6 @@ public class Lexer(string source)
             case '<':
                 if (Peek() == '|') { Advance(2); return Make(TokenType.LtPipe, "<|", line, col); }
                 if (Peek() == '=') { Advance(2); return Make(TokenType.LtEq, "<=", line, col); }
-                if (Peek() == '-') { Advance(2); return Make(TokenType.LtMinus, "<-", line, col); }
                 Advance(); return Make(TokenType.Lt, "<", line, col);
             case '=':
                 if (Peek() == '>') { Advance(2); return Make(TokenType.FatArrow, "=>", line, col); }
