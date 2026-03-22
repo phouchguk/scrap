@@ -185,11 +185,11 @@ public class CompilerTests
 
     [Fact]
     public void VariantWithPayload() =>
-        AssertCompiles("c::radius 4 ; c : #radius int", typeCheck: false);
+        AssertCompiles("c::radius 4 ; c : #radius int", typeCheck: true);
 
     [Fact]
     public void VariantMultiPayload() =>
-        AssertCompiles("point::two_d 3 4 ; point : #two_d int int #three_d int int int", typeCheck: false);
+        AssertCompiles("point::two_d 3 4 ; point : #two_d int int #three_d int int int", typeCheck: true);
 
     // ── Bytes ─────────────────────────────────────────────────────────────────
 

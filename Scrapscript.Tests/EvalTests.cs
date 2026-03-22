@@ -509,14 +509,14 @@ public class EvalTests
     [Fact]
     public void Do_NoBinds_EvaluatesBody()
     {
-        Assert.Equal(Int(42), Eval("do 42", typeCheck: false));
+        Assert.Equal(Int(42), Eval("do 42"));
     }
 
     [Fact]
     public void Do_SingleBind_UnwrapsPureValue()
     {
         // do x <- #pure 10, x + 1  =>  11
-        var result = Eval($"do x <- #pure 10, x + 1 ; {BindDef}", typeCheck: false);
+        var result = Eval("do x <- #pure 10, x + 1");
         Assert.Equal(Int(11), result);
     }
 
@@ -524,7 +524,7 @@ public class EvalTests
     public void Do_TwoBinds_ChainsThroughPure()
     {
         // do x <- #pure 3, y <- #pure 4, x + y  =>  7
-        var result = Eval($"do x <- #pure 3, y <- #pure 4, x + y ; {BindDef}", typeCheck: false);
+        var result = Eval("do x <- #pure 3, y <- #pure 4, x + y");
         Assert.Equal(Int(7), result);
     }
 
@@ -532,7 +532,7 @@ public class EvalTests
     public void Do_TerminalVariantPassesThrough()
     {
         // do x <- #pure "hi", #ok x  =>  #ok "hi"
-        var result = Eval($"""do x <- #pure "hi", #ok x ; {BindDef}""", typeCheck: false);
+        var result = Eval("""do x <- #pure "hi", #ok x""");
         Assert.Equal(new ScrapVariant("ok", Text("hi")), result);
     }
 
@@ -541,7 +541,7 @@ public class EvalTests
     {
         // If bind encounters a non-#pure effect, it passes it through unchanged.
         // do x <- #ok "done", x ++ "!"  — the #ok "done" short-circuits, never runs x ++ "!"
-        var result = Eval($"""do x <- #ok "done", x ++ "!" ; {BindDef}""", typeCheck: false);
+        var result = Eval("""do x <- #ok "done", x ++ "!" """);
         Assert.Equal(new ScrapVariant("ok", Text("done")), result);
     }
 
