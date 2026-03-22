@@ -372,6 +372,33 @@ public class TypeCheckerTests
         AssertTypeError("f { a = \"hi\" } ; f = r -> r.a + 1");
     }
 
+    // ── Record type annotations ───────────────────────────────────────────────
+
+    [Fact]
+    public void RecordAnnotationAccepted()
+    {
+        AssertOk("42 ; rec : { a : int, b : text } = { a = 1, b = \"hello\" }");
+    }
+
+    [Fact]
+    public void RecordAnnotationRejectsWrongFieldType()
+    {
+        AssertTypeError("42 ; rec : { a : int } = { a = \"oops\" }");
+    }
+
+    [Fact]
+    public void RecordAnnotationRejectsMissingField()
+    {
+        AssertTypeError("42 ; rec : { a : int, b : text } = { a = 1 }");
+    }
+
+    [Fact]
+    public void RecordAnnotationRejectsExtraField()
+    {
+        // closed record — extra field not in annotation is a mismatch
+        AssertTypeError("42 ; rec : { a : int } = { a = 1, b = 2 }");
+    }
+
     // ── Record spread ─────────────────────────────────────────────────────────
 
     [Fact]
