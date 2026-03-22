@@ -3,6 +3,7 @@ using Scrapscript.Core.Compiler;
 using Scrapscript.Core.Eval;
 using Scrapscript.Core.Lexer;
 using Scrapscript.Core.Parser;
+using Scrapscript.Core.Platforms;
 using Scrapscript.Core.Scrapyard;
 using Scrapscript.Core.TypeChecker;
 
@@ -21,6 +22,27 @@ public class ScrapInterpreter
         _typeEnv = BuiltinTypes.Create();
         _yard = yard ?? new LocalYard();
         _map = map;
+    }
+
+    public TypeEnv TypeEnv => _typeEnv;
+
+    public void CheckAgainstPlatform(string source, IPlatform platform)
+    {
+        // Platform types go in a child env so they take precedence over builtins
+        // (e.g. http-result's #ok is found before result's #ok)
+        var checkEnv = new TypeEnv(_typeEnv);
+        platform.RegisterTypes(checkEnv);
+        var ast = Parse(source);
+        var inferrer = new TypeInferrer(_yard);
+        var (inferredType, subst) = inferrer.Infer(checkEnv, ast);
+        var resolved = inferredType.Apply(subst);
+        var expected = new TFunc(platform.InputType, platform.OutputType);
+        try { Substitution.Unify(resolved, expected); }
+        catch (TypeCheckError)
+        {
+            throw new TypeCheckError(
+                $"Program type '{resolved}' is incompatible with platform expecting '{expected}'");
+        }
     }
 
     public ScrapValue Eval(string source, bool typeCheck = true, DateTimeOffset? asOf = null)

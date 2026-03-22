@@ -1,6 +1,7 @@
 using Scrapscript.Core;
 using Scrapscript.Core.Eval;
 using Scrapscript.Core.Platforms;
+using Scrapscript.Core.TypeChecker;
 using Xunit;
 
 namespace Scrapscript.Tests;
@@ -26,10 +27,10 @@ public class PlatformTests
     }
 
     [Fact]
-    public void ConsolePlatform_NonTextOutput_ThrowsScrapTypeError()
+    public void ConsolePlatform_NonTextOutput_ThrowsTypeCheckError()
     {
         var platform = new ConsolePlatform(TextWriter.Null);
-        Assert.Throws<ScrapTypeError>(() =>
+        Assert.Throws<TypeCheckError>(() =>
             platform.Run(new ScrapInterpreter(), "_ -> 42"));
     }
 
@@ -79,5 +80,82 @@ public class PlatformTests
         var fn = interpreter.Eval("x -> x + 1", typeCheck: false);
         var result = interpreter.Apply(fn, new ScrapInt(5));
         Assert.Equal(new ScrapInt(6), result);
+    }
+
+    // ── Platform type contract tests ──────────────────────────────────────────
+
+    [Fact]
+    public void ConsolePlatform_TypeCheck_AcceptsTextOutput()
+    {
+        var interp = new ScrapInterpreter();
+        interp.CheckAgainstPlatform("""_ -> "hello" """, new ConsolePlatform());
+        // no exception = pass
+    }
+
+    [Fact]
+    public void ConsolePlatform_TypeCheck_RejectsIntOutput()
+    {
+        var interp = new ScrapInterpreter();
+        var ex = Assert.Throws<TypeCheckError>(() =>
+            interp.CheckAgainstPlatform("_ -> 42", new ConsolePlatform()));
+        Assert.Contains("int", ex.Message);
+        Assert.Contains("text", ex.Message);
+    }
+
+    [Fact]
+    public void HttpPlatform_TypeCheck_AcceptsFullHandler()
+    {
+        var interp = new ScrapInterpreter();
+        interp.CheckAgainstPlatform(
+            """| "/" -> #ok "home" | "/about" -> #ok "about" | _ -> #notfound "nope" """,
+            new HttpPlatform());
+        // no exception = pass
+    }
+
+    [Fact]
+    public void HttpPlatform_TypeCheck_RejectsWrongPayloadType()
+    {
+        var interp = new ScrapInterpreter();
+        Assert.Throws<TypeCheckError>(() =>
+            interp.CheckAgainstPlatform("_ -> #ok 42", new HttpPlatform()));
+    }
+
+    [Fact]
+    public void HttpPlatform_TypeCheck_RejectsIntReturn()
+    {
+        var interp = new ScrapInterpreter();
+        var ex = Assert.Throws<TypeCheckError>(() =>
+            interp.CheckAgainstPlatform("_ -> 42", new HttpPlatform()));
+        Assert.Contains("http-result", ex.Message);
+    }
+
+    [Fact]
+    public void PlatformTypes_RuntimeCheck_AcceptsCorrectVariant()
+    {
+        var interp = new ScrapInterpreter();
+        new HttpPlatform().RegisterTypes(interp.TypeEnv);
+        var outputType = new HttpPlatform().OutputType;
+        PlatformTypes.RuntimeCheck(new ScrapVariant("ok", new ScrapText("hello")), outputType, interp.TypeEnv);
+        // no exception = pass
+    }
+
+    [Fact]
+    public void PlatformTypes_RuntimeCheck_RejectsWrongVariantPayload()
+    {
+        var interp = new ScrapInterpreter();
+        new HttpPlatform().RegisterTypes(interp.TypeEnv);
+        var outputType = new HttpPlatform().OutputType;
+        Assert.Throws<ScrapTypeError>(() =>
+            PlatformTypes.RuntimeCheck(new ScrapVariant("ok", new ScrapInt(42)), outputType, interp.TypeEnv));
+    }
+
+    [Fact]
+    public void PlatformTypes_RuntimeCheck_RejectsUnknownTag()
+    {
+        var interp = new ScrapInterpreter();
+        new HttpPlatform().RegisterTypes(interp.TypeEnv);
+        var outputType = new HttpPlatform().OutputType;
+        Assert.Throws<ScrapTypeError>(() =>
+            PlatformTypes.RuntimeCheck(new ScrapVariant("redirect", new ScrapText("/home")), outputType, interp.TypeEnv));
     }
 }

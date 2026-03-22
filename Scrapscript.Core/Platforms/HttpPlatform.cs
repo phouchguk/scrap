@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using System.Net;
 using Scrapscript.Core.Eval;
+using Scrapscript.Core.TypeChecker;
 
 namespace Scrapscript.Core.Platforms;
 
@@ -7,8 +9,22 @@ public class HttpPlatform(int port = 8080, TextWriter? log = null) : IPlatform
 {
     private readonly TextWriter _log = log ?? Console.Out;
 
+    public ScrapType InputType  => TText.Instance;
+    public ScrapType OutputType => new TName("http-result");
+
+    public void RegisterTypes(TypeEnv env)
+    {
+        env.AddTypeDef(new TypeDef("http-result",
+            ImmutableList<string>.Empty,
+            ImmutableList.Create(
+                new VariantDef("ok",       ImmutableList.Create<ScrapType>(TText.Instance)),
+                new VariantDef("notfound", ImmutableList.Create<ScrapType>(TText.Instance)),
+                new VariantDef("error",    ImmutableList.Create<ScrapType>(TText.Instance)))));
+    }
+
     public void Run(ScrapInterpreter interpreter, string source)
     {
+        interpreter.CheckAgainstPlatform(source, this);
         var fn = interpreter.Eval(source, typeCheck: false);
 
         var listener = new HttpListener();
