@@ -126,6 +126,16 @@ public class PlatformTests
     }
 
     [Fact]
+    public void HttpPlatform_TypeCheck_RejectsMissingStatusField()
+    {
+        var interp = new ScrapInterpreter();
+        Assert.Throws<TypeCheckError>(() =>
+            interp.CheckAgainstPlatform(
+                """_ -> #send { body = "hello" } """,
+                new HttpPlatform()));
+    }
+
+    [Fact]
     public void PlatformTypes_RuntimeCheck_AcceptsCorrectVariant()
     {
         var interp = new ScrapInterpreter();

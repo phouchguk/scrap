@@ -15,12 +15,13 @@ public class HttpPlatform(int port = 8080, TextWriter? log = null) : IPlatform
     public void RegisterTypes(TypeEnv env)
     {
         // Programs return #send { status = int, body = text }.
-        // The record payload is typed as TVar("_r") since the type system
-        // does not yet have a TRecord type — record contents are checked at runtime.
         env.AddTypeDef(new TypeDef("http-response",
             ImmutableList<string>.Empty,
             ImmutableList.Create(
-                new VariantDef("send", ImmutableList.Create<ScrapType>(new TVar("_r"))))));
+                new VariantDef("send", ImmutableList.Create<ScrapType>(
+                    new TRecord(ImmutableDictionary<string, ScrapType>.Empty
+                        .Add("status", TInt.Instance)
+                        .Add("body",   TText.Instance)))))));
     }
 
     public void Run(ScrapInterpreter interpreter, string source)

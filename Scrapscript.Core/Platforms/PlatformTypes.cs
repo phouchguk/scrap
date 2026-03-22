@@ -43,6 +43,16 @@ public static class PlatformTypes
                             RuntimeCheck(list.Items[i], variantDef.PayloadTypes[i], env);
                 }
                 break;
+            case TRecord rec:
+                if (value is not ScrapRecord record)
+                    throw new ScrapTypeError($"Platform expected a record, got: {value.Display()}");
+                foreach (var (field, fieldType) in rec.Fields)
+                {
+                    if (!record.Fields.TryGetValue(field, out var fieldVal))
+                        throw new ScrapTypeError($"Platform record missing field '{field}'");
+                    RuntimeCheck(fieldVal, fieldType, env);
+                }
+                break;
             case TVar:
                 break; // unconstrained — trust compile-time
             default:

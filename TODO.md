@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 517/517 tests passing
+## Status: 518/518 tests passing
 
 ## Completed
 
@@ -35,7 +35,7 @@
 
 These are the remaining gaps between our type safety and Elm's guarantee. In Elm, if it compiles it won't throw at runtime. These items close that gap:
 
-- [ ] **`TRecord` in the type system** — the single biggest gap. Currently, record payloads inside variant types are typed as opaque `TVar("_r")`, so `#send { status = int, body = text }` is only half-checked: the tag is verified but the record contents are not. Fix: add `TRecord of Map<string, ScrapType>` to `ScrapType.cs`, update `TypeInferrer` to infer record literal types, update `VariantDef` to carry record payload types, and update `PlatformTypes.RuntimeCheck` to delegate to compile-time. Once done, `#send { body = "hi" }` (missing `status`) would be a compile-time error.
+- [x] **`TRecord` in the type system** — `HttpPlatform` now registers `#send { status : int, body : text }` using a real `TRecord` payload; `PlatformTypes.RuntimeCheck` handles `TRecord` by checking each field; `#send { body = "hi" }` (missing `status`) is now a compile-time error.
 
 - [ ] **Exhaustiveness for anonymous variants** — exhaustiveness is currently checked only when the type checker can identify which named `TypeDef` a variant belongs to. Anonymous variant patterns (e.g. `| #just n -> ...` in a function with no type annotation) get no exhaustiveness check. Fix: propagate the expected type into pattern match inference so all variant matches are checked for completeness.
 
