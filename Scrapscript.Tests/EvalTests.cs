@@ -484,7 +484,7 @@ public class EvalTests
         yard.Init();
         var interpreter = new ScrapInterpreter(yard);
         var hash = yard.Push(FlatEncoder.Encode(new ScrapInt(42)));
-        var result = interpreter.Eval($"${hash}", typeCheck: false);
+        var result = interpreter.Eval($"${hash}");
         Assert.Equal(new ScrapInt(42), result);
     }
 
@@ -495,7 +495,7 @@ public class EvalTests
         yard.Init();
         var interpreter = new ScrapInterpreter(yard);
         var hash = yard.Push(FlatEncoder.Encode(new ScrapInt(42)));
-        var result = interpreter.Eval($"${hash} + 1", typeCheck: false);
+        var result = interpreter.Eval($"${hash} + 1");
         Assert.Equal(new ScrapInt(43), result);
     }
 
@@ -529,7 +529,7 @@ public class EvalTests
 
     [Fact] public void TextAtFirst()    => Assert.Equal(new ScrapVariant("just", Text("h")),  Eval("text/at 0 \"hello\""));
     [Fact] public void TextAtLast()     => Assert.Equal(new ScrapVariant("just", Text("o")),  Eval("text/at 4 \"hello\""));
-    [Fact] public void TextAtOob()      => Assert.Equal(new ScrapVariant("nothing", null),    Eval("text/at 10 \"hello\"", typeCheck: false));
+    [Fact] public void TextAtOob()      => Assert.Equal(new ScrapVariant("nothing", null),    Eval("text/at 10 \"hello\""));
 
     // ── text/chars ────────────────────────────────────────────────────────────
 
@@ -592,12 +592,12 @@ public class EvalTests
     [Fact]
     public void TailRecursiveSumLargeN() =>
         Assert.Equal(Int(500000500000L),
-            Eval("sum 1000000 0 ; sum = | 0 -> (acc -> acc) | n -> (acc -> sum (n - 1) (acc + n))", typeCheck: false));
+            Eval("sum 1000000 0 ; sum = | 0 -> (acc -> acc) | n -> (acc -> sum (n - 1) (acc + n))"));
 
     [Fact]
     public void TailRecursiveMutualRecursionDeep() =>
         Assert.Equal(new ScrapVariant("true", null),
-            Eval("even 100000 ; even = | 0 -> #true | n -> odd (n - 1) ; odd = | 0 -> #false | n -> even (n - 1)", typeCheck: false));
+            Eval("even 100000 ; even = | 0 -> #true | n -> odd (n - 1) ; odd = | 0 -> #false | n -> even (n - 1)"));
 
     [Fact]
     public void DisambiguateSharedTagNamesViaDoubleColon()
