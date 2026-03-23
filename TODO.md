@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 522/522 tests passing
+## Status: 530/530 tests passing
 
 ## Completed
 

@@ -399,6 +399,54 @@ public class TypeCheckerTests
         AssertTypeError("42 ; rec : { a : int } = { a = 1, b = 2 }");
     }
 
+    [Fact]
+    public void RecordAnnotationNamedTypeField()
+    {
+        AssertOk("42 ; rec : { flag : bool } = { flag = #true }");
+    }
+
+    [Fact]
+    public void RecordAnnotationNamedTypeFieldRejectsWrongType()
+    {
+        AssertTypeError("42 ; rec : { flag : bool } = { flag = 1 }");
+    }
+
+    [Fact]
+    public void RecordAnnotationGenericField()
+    {
+        AssertOk("42 ; rec : { n : maybe int } = { n = #just 1 }");
+    }
+
+    [Fact]
+    public void RecordAnnotationGenericFieldNothingVariant()
+    {
+        AssertOk("42 ; rec : { n : maybe int } = { n = #nothing }");
+    }
+
+    [Fact]
+    public void RecordAnnotationGenericFieldRejectsWrongPayload()
+    {
+        AssertTypeError("42 ; rec : { n : maybe int } = { n = #just \"oops\" }");
+    }
+
+    [Fact]
+    public void RecordAnnotationInlineVariantField()
+    {
+        AssertOk("42 ; rec : { a : (#foo #bar) } = { a = #foo }");
+    }
+
+    [Fact]
+    public void RecordAnnotationFunctionField()
+    {
+        AssertOk("42 ; rec : { f : (int -> int) } = { f = n -> n + 1 }");
+    }
+
+    [Fact]
+    public void RecordAnnotationFunctionFieldRejectsWrongReturnType()
+    {
+        AssertTypeError("42 ; rec : { f : (int -> int) } = { f = n -> \"oops\" }");
+    }
+
     // ── Record spread ─────────────────────────────────────────────────────────
 
     [Fact]

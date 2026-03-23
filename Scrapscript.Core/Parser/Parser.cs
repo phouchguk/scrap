@@ -635,7 +635,16 @@ public class Parser(List<Token> tokens)
         if (variants.Count > 0)
             return new VariantType(variants);
 
-        return ParseTypeAtom();
+        return ParseTypeApp();
+    }
+
+    // Left-associative generic application: maybe int, result text error → ApplyType(ApplyType(...), ...)
+    private TypeExpr ParseTypeApp()
+    {
+        var result = ParseTypeAtom();
+        while (IsTypeAtomStart())
+            result = new ApplyType(result, ParseTypeAtom());
+        return result;
     }
 
     private bool IsTypeParamStart()
@@ -665,7 +674,7 @@ public class Parser(List<Token> tokens)
             {
                 var fieldName = Expect(TokenType.Identifier).Text;
                 Expect(TokenType.Colon);
-                var fieldType = ParseTypeAtom();
+                var fieldType = ParseTypeApp();
                 fields.Add((fieldName, fieldType));
                 if (Check(TokenType.Comma)) Consume();
             }
