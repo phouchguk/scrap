@@ -116,9 +116,26 @@ public class TypeEnv
                     f => ConvertTypeExpr(f.Type, typeParams))),
             ListTypeExpr l => new TList(ConvertTypeExpr(l.ElementType, typeParams)),
             ApplyType a => ApplyGenericType(a, typeParams),
-            VariantType => THole.Instance, // inline variant type used as payload — treated as opaque
+            VariantType vt => RegisterInlineVariantType(vt, typeParams),
             _ => throw new TypeCheckError($"Cannot convert type expression: {typeExpr}")
         };
+    }
+
+    private TName RegisterInlineVariantType(VariantType vt, IReadOnlyList<string> typeParams)
+    {
+        var name = "$anon_" + string.Join("_", vt.Variants.Select(v => v.Tag));
+        if (LookupTypeDef(name) == null)
+        {
+            var variantDefs = vt.Variants.Select(v =>
+            {
+                var payloads = v.Payload == null
+                    ? ImmutableList<ScrapType>.Empty
+                    : ImmutableList.Create(ConvertTypeExpr(v.Payload, typeParams));
+                return new VariantDef(v.Tag, payloads);
+            }).ToImmutableList();
+            AddTypeDef(new TypeDef(name, ImmutableList<string>.Empty, variantDefs));
+        }
+        return new TName(name);
     }
 
     private ScrapType ApplyGenericType(ApplyType a, IReadOnlyList<string> typeParams)

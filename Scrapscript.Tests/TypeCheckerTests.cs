@@ -306,6 +306,25 @@ public class TypeCheckerTests
         AssertTypeError("(| #true -> 1) (1 == 1)");
     }
 
+    [Fact]
+    public void AnonVariantAnnotationRejectsMissingArm()
+    {
+        // (#foo #bar) in annotation registers synthetic type; #bar is missing
+        AssertTypeError("0 ; f : ((#foo #bar) -> int) = | #foo -> 1");
+    }
+
+    [Fact]
+    public void AnonVariantAnnotationAcceptsAllArms()
+    {
+        AssertOk("0 ; f : ((#foo #bar) -> int) = | #foo -> 1 | #bar -> 2");
+    }
+
+    [Fact]
+    public void AnonVariantAnnotationAcceptsWildcard()
+    {
+        AssertOk("0 ; f : ((#foo #bar) -> int) = | #foo -> 1 | _ -> 0");
+    }
+
     // ── Negation ──────────────────────────────────────────────────────────────
 
     [Fact] public void TypeNegateInt()   => Assert.Equal("int",   TypeOf("-x ; x = 5"));

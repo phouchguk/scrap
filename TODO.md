@@ -1,6 +1,6 @@
 # Scrapscript C# Implementation TODO
 
-## Status: 530/530 tests passing
+## Status: 533/533 tests passing
 
 ## Completed
 
@@ -37,7 +37,7 @@ These are the remaining gaps between our type safety and Elm's guarantee. In Elm
 
 - [x] **`TRecord` in the type system** — `HttpPlatform` now registers `#send { status : int, body : text }` using a real `TRecord` payload; `PlatformTypes.RuntimeCheck` handles `TRecord` by checking each field; `#send { body = "hi" }` (missing `status`) is now a compile-time error.
 
-- [ ] **Exhaustiveness for anonymous variants** — exhaustiveness is currently checked only when the type checker can identify which named `TypeDef` a variant belongs to. Anonymous variant patterns (e.g. `| #just n -> ...` in a function with no type annotation) get no exhaustiveness check. Fix: propagate the expected type into pattern match inference so all variant matches are checked for completeness.
+- [x] **Exhaustiveness for anonymous variants** — `ConvertTypeExpr(VariantType)` now registers a synthetic `TypeDef` (`$anon_...`) instead of returning an opaque hole. Inline variant annotations like `f : ((#foo #bar) -> int) = | #foo -> 1` now catch missing arms at compile time.
 
 - [ ] **Remove defensive runtime type checks from the evaluator** — `Evaluator.cs` still has many `throw new ScrapTypeError(...)` guards for cases that should be unreachable if the type checker is doing its job (e.g. applying a non-function, adding non-numbers). These are currently needed because the type checker has gaps. Once `TRecord` and exhaustiveness are complete, audit these and remove the ones the type checker now covers — making the evaluator prove, not just hope, they're unreachable.
 
