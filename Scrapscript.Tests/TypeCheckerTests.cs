@@ -103,6 +103,28 @@ public class TypeCheckerTests
     }
 
     [Fact]
+    public void DisambiguateSharedTagNameCorrectPayload()
+    {
+        // hand::left checks int payload; leg::left checks text payload — both ok individually
+        AssertOk("hand::left 5 ; hand : #left int #right int ; leg : #left text #right text");
+        AssertOk("leg::left \"knee\" ; hand : #left int #right int ; leg : #left text #right text");
+    }
+
+    [Fact]
+    public void DisambiguateSharedTagNameWrongPayloadRejected()
+    {
+        // hand::left with a text payload is a type error (hand declares #left int)
+        AssertTypeError("hand::left \"oops\" ; hand : #left int #right int ; leg : #left text #right text");
+    }
+
+    [Fact]
+    public void DisambiguateSharedTagNameMixedListRejected()
+    {
+        // hand ≠ leg — a list cannot hold both (nominal typing, same as Elm)
+        AssertTypeError("[hand::left 5, leg::left \"knee\"] ; hand : #left int #right int ; leg : #left text #right text");
+    }
+
+    [Fact]
     public void RejectInvalidVariant()
     {
         AssertTypeError("scoop::banana ; scoop : #vanilla #chocolate #strawberry");

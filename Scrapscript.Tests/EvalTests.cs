@@ -602,7 +602,9 @@ public class EvalTests
     [Fact]
     public void DisambiguateSharedTagNamesViaDoubleColon()
     {
-        // hand and leg both define #left and #right — :: disambiguates for the type checker
+        // hand and leg both define #left and #right — :: disambiguates which type each constructor
+        // belongs to. The list mixes two different nominal types (hand ≠ leg), so the type
+        // checker correctly rejects it. typeCheck: false preserves the runtime behaviour test.
         const string src = """
             [hand::left 5, leg::left "knee"]
             ; hand : #left int #right int
