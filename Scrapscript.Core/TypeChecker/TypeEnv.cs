@@ -17,10 +17,22 @@ public record TypeDef(
 public class TypeEnv
 {
     private readonly Dictionary<string, TypeScheme> _vars = new();
-    private readonly Dictionary<string, TypeDef> _types = new();
+    private readonly Dictionary<string, TypeDef> _types;
     private readonly TypeEnv? _parent;
 
-    public TypeEnv(TypeEnv? parent = null) => _parent = parent;
+    public TypeEnv(TypeEnv? parent = null)
+    {
+        _parent = parent;
+        _types = new Dictionary<string, TypeDef>();
+    }
+
+    // Private constructor that shares the _types dictionary across ApplySubst copies,
+    // so AddTypeDef calls in any copy are visible in all copies at the same scope level.
+    private TypeEnv(TypeEnv? parent, Dictionary<string, TypeDef> sharedTypes)
+    {
+        _parent = parent;
+        _types = sharedTypes;
+    }
 
     // Variable bindings
 
@@ -52,13 +64,22 @@ public class TypeEnv
         return _parent?.LookupTypeDef(name);
     }
 
-    // Look up which named type owns a given variant tag
+    // Look up which registered type owns a given variant tag (includes $anon_* types)
     public TypeDef? FindTypeForTag(string tag)
     {
         foreach (var def in _types.Values)
             if (def.Variants.Any(v => v.Tag == tag))
                 return def;
         return _parent?.FindTypeForTag(tag);
+    }
+
+    // Look up only user-declared / builtin named types (skips $anon_* synthetics)
+    public TypeDef? FindNamedTypeForTag(string tag)
+    {
+        foreach (var def in _types.Values)
+            if (!def.Name.StartsWith("$anon_") && def.Variants.Any(v => v.Tag == tag))
+                return def;
+        return _parent?.FindNamedTypeForTag(tag);
     }
 
     // All free type variables in the environment (for generalization)
@@ -76,11 +97,11 @@ public class TypeEnv
 
     public TypeEnv ApplySubst(Substitution s)
     {
-        var env = new TypeEnv(_parent?.ApplySubst(s));
+        // Share _types by reference so AddTypeDef in any copy is visible across all copies
+        // at the same scope level (synthetic types registered during inference persist).
+        var env = new TypeEnv(_parent?.ApplySubst(s), _types);
         foreach (var (name, scheme) in _vars)
             env._vars[name] = new TypeScheme(scheme.Quantified, scheme.Type.Apply(s));
-        foreach (var (name, def) in _types)
-            env._types[name] = def;
         return env;
     }
 

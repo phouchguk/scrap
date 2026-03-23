@@ -332,6 +332,60 @@ public class TypeInferrer
             resultType = resultType.Apply(s);
         }
 
+        // Part 2: if argType is still TVar after processing all arms,
+        // infer it from VariantPat arms or error on unknown tags with wildcards.
+        var resolvedArgType = argType.Apply(s);
+        if (resolvedArgType is TVar)
+        {
+            var envS = env.ApplySubst(s);
+            bool hasWildcard = ce.Arms.Any(a => a.Pattern is WildcardPat or VarPat);
+            var variantArms = ce.Arms
+                .Where(a => a.Pattern is VariantPat)
+                .Select(a => (VariantPat)a.Pattern)
+                .ToList();
+
+            if (variantArms.Count > 0)
+            {
+                if (hasWildcard)
+                {
+                    // Wildcard + unknown variant tag → error (arm is unreachable dead code)
+                    foreach (var vp in variantArms)
+                        if (envS.FindTypeForTag(vp.Tag) == null)
+                            throw new TypeCheckError($"Unknown variant '#{vp.Tag}': declare its type before using it in a pattern");
+                    // All tags known — argType stays TVar (polymorphic)
+                }
+                else
+                {
+                    // No wildcard: collect tags (with payload arities) into a closed synthetic type
+                    var tags = variantArms.Select(vp => vp.Tag).ToList();
+                    var syntheticName = "$anon_" + string.Join("_", tags);
+                    var syntheticDef = envS.LookupTypeDef(syntheticName);
+                    if (syntheticDef == null)
+                    {
+                        var variantDefs = variantArms.Select(vp =>
+                        {
+                            // Infer payload arity from the pattern
+                            var arity = vp.Payload switch
+                            {
+                                null => 0,
+                                ListPat lp => lp.Items.Count,
+                                _ => 1
+                            };
+                            var payloadTypes = Enumerable.Range(0, arity)
+                                .Select(_ => (ScrapType)Fresh())
+                                .ToImmutableList();
+                            return new VariantDef(vp.Tag, payloadTypes);
+                        }).ToImmutableList();
+                        syntheticDef = new TypeDef(syntheticName, ImmutableList<string>.Empty, variantDefs);
+                        envS.AddTypeDef(syntheticDef);
+                        env.AddTypeDef(syntheticDef);
+                    }
+                    var sNew = Unify(resolvedArgType, new TName(syntheticName, ImmutableList<ScrapType>.Empty));
+                    s = s.Compose(sNew);
+                }
+            }
+        }
+
         CheckRedundantArms(ce);
         CheckExhaustiveness(ce, argType.Apply(s), env.ApplySubst(s));
         return (new TFunc(argType.Apply(s), resultType.Apply(s)), s);
@@ -527,14 +581,22 @@ public class TypeInferrer
         // #tag standalone (no named type)
         if (c.TypeExpr is Var v && v.Name == "__variant__")
         {
-            // Find which type def has this tag
-            var typeDef = env.FindTypeForTag(c.Variant);
-            if (typeDef != null)
-            {
-                return MakeConstructorType(typeDef, c.Variant, env);
-            }
-            // Unknown tag — fresh type
-            return (Fresh(), Substitution.Empty);
+            // 1. Check for exact one-variant synthetic ($anon_tag) — highest priority
+            var syntheticName = "$anon_" + c.Variant;
+            var syntheticDef = env.LookupTypeDef(syntheticName);
+            if (syntheticDef != null)
+                return MakeConstructorType(syntheticDef, c.Variant, env);
+
+            // 2. Check for any registered type containing this tag (named or multi-variant $anon_*)
+            var namedDef = env.FindTypeForTag(c.Variant);
+            if (namedDef != null)
+                return MakeConstructorType(namedDef, c.Variant, env);
+
+            // 3. Unknown tag — register a new one-variant synthetic type
+            var newDef = new TypeDef(syntheticName, ImmutableList<string>.Empty,
+                ImmutableList.Create(new VariantDef(c.Variant, ImmutableList<ScrapType>.Empty)));
+            env.AddTypeDef(newDef);
+            return MakeConstructorType(newDef, c.Variant, env);
         }
 
         // type::variant — look up the type
@@ -697,7 +759,14 @@ public class TypeInferrer
             case VariantPat vp:
                 // Verify the variant exists in the matched type's definition (if known)
                 CheckVariantPat(vp, matchType, env);
-                if (vp.Payload != null)
+                if (vp.Payload is ListPat mlp)
+                {
+                    // Multi-payload variant: bind each sub-pattern to its own payload type
+                    var pts = GetVariantPayloadTypes(vp.Tag, matchType, env, mlp.Items.Count);
+                    for (int i = 0; i < mlp.Items.Count; i++)
+                        CollectPatBindings(mlp.Items[i], pts[i], env, s, bindings);
+                }
+                else if (vp.Payload != null)
                 {
                     var payloadType = GetVariantPayloadType(vp.Tag, matchType, env);
                     CollectPatBindings(vp.Payload, payloadType, env, s, bindings);
@@ -750,11 +819,22 @@ public class TypeInferrer
                 var variant = typeDef.Variants.FirstOrDefault(v => v.Tag == tag);
                 if (variant != null && variant.PayloadTypes.Count == 1)
                     return variant.PayloadTypes[0];
-                if (variant != null && variant.PayloadTypes.Count > 1)
-                    return new TList(variant.PayloadTypes[0]); // multi-payload
             }
         }
         return Fresh();
+    }
+
+    private IReadOnlyList<ScrapType> GetVariantPayloadTypes(
+        string tag, ScrapType matchType, TypeEnv env, int arity)
+    {
+        if (matchType is TName named)
+        {
+            var typeDef = env.LookupTypeDef(named.Name);
+            var variant = typeDef?.Variants.FirstOrDefault(v => v.Tag == tag);
+            if (variant != null && variant.PayloadTypes.Count == arity)
+                return variant.PayloadTypes;
+        }
+        return Enumerable.Range(0, arity).Select(_ => (ScrapType)Fresh()).ToList();
     }
 
     private void BindPatternVars(Pattern pat, ScrapType matchType, TypeEnv env)

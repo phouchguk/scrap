@@ -325,6 +325,51 @@ public class TypeCheckerTests
         AssertOk("0 ; f : ((#foo #bar) -> int) = | #foo -> 1 | _ -> 0");
     }
 
+    // ── Typed bare constructors ───────────────────────────────────────────────
+
+    [Fact]
+    public void TypeBareConstructorRegistersType()
+    {
+        Assert.Equal("$anon_foo", TypeOf("#foo"));
+    }
+
+    [Fact]
+    public void KnownTagUnaffectedByPart1()
+    {
+        Assert.Equal("bool", TypeOf("#true"));
+    }
+
+    [Fact]
+    public void CaseInfersArgTypeFromVariantPatterns()
+    {
+        Assert.StartsWith("($anon_foo_bar ->", TypeOf("| #foo -> 1 | #bar -> 2"));
+    }
+
+    [Fact]
+    public void BareConstructorWidensToMultiVariantCaseType()
+    {
+        // Bare #foo finds the $anon_foo_bar type registered by the case, so f #foo is valid.
+        AssertOk("f #foo ; f = | #foo -> 1 | #bar -> 2");
+    }
+
+    [Fact]
+    public void RejectWildcardCaseWithUnknownVariant()
+    {
+        AssertTypeError("| #foo -> 1 | _ -> 0");
+    }
+
+    [Fact]
+    public void WildcardCaseWithKnownVariantOk()
+    {
+        AssertOk("(| #true -> 1 | _ -> 0) (1 == 1)");
+    }
+
+    [Fact]
+    public void CaseSyntheticTypeIsExhaustive()
+    {
+        AssertOk("(#foo #bar)::foo |> | #foo -> 1 | #bar -> 2");
+    }
+
     // ── Negation ──────────────────────────────────────────────────────────────
 
     [Fact] public void TypeNegateInt()   => Assert.Equal("int",   TypeOf("-x ; x = 5"));
@@ -449,9 +494,18 @@ public class TypeCheckerTests
     }
 
     [Fact]
+    public void RecordAnnotationNamedVariantField()
+    {
+        // Named type declared first — bare #foo resolves to that named type
+        AssertOk("42 ; rec : { a : foobar } = { a = #foo } ; foobar : #foo #bar");
+    }
+
+    [Fact]
     public void RecordAnnotationInlineVariantField()
     {
-        AssertOk("42 ; rec : { a : (#foo #bar) } = { a = #foo }");
+        // Inline variant type in annotation — requires explicit (#foo #bar)::foo
+        // because bare #foo gets one-variant type $anon_foo, not the two-variant $anon_foo_bar
+        AssertOk("42 ; rec : { a : (#foo #bar) } = { a = (#foo #bar)::foo }");
     }
 
     [Fact]
@@ -686,4 +740,33 @@ public class TypeCheckerTests
     {
         AssertOk("f [1, 2, 3] ; f : [a] -> a = xs -> 1");
     }
+
+    // ── Recursive / multi-payload variants ────────────────────────────────────
+
+    [Fact]
+    public void MultiPayloadVariantInference()
+    {
+        // f infers argument type as a two-payload variant; l and r get independent types
+        AssertOk("(f (#node 1 2)) ; f = | #node l r -> l + r");
+    }
+
+    [Fact]
+    public void RecursiveAnonymousVariantType()
+    {
+        // depth infers a recursive anonymous tree type without an explicit type declaration
+        AssertOk(
+            "(depth (#node (#node #leaf #leaf) #leaf))" +
+            "; depth = | #leaf -> 0 | #node l r -> 1 + (depth l)");
+    }
+
+    [Fact]
+    public void ExplicitRecursiveTypeDeclOk()
+    {
+        // tree : #leaf #node tree tree — explicit recursive type declaration
+        AssertOk(
+            "(depth (#node (#node #leaf #leaf) #leaf))" +
+            "; depth : tree -> int = | #leaf -> 0 | #node l r -> 1 + (depth l)" +
+            "; tree : #leaf #node tree tree");
+    }
+
 }
